@@ -9,6 +9,7 @@
  */
 #endregion
 
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 
@@ -70,7 +71,11 @@ namespace OpenRA.Mods.Common.FileSystem
 		public void Mount(Manifest manifest, OpenRA.FileSystem.FileSystem fileSystem, ObjectCreator objectCreator)
 		{
 			foreach (var kv in SystemPackages)
+			{
+				if (OperatingSystem.IsBrowser())
+					System.Console.WriteLine($"[fs] System mount: {kv.Key} -> {kv.Value}");
 				fileSystem.Mount(kv.Key, kv.Value);
+			}
 
 			if (ContentPackages != null)
 			{
@@ -78,10 +83,16 @@ namespace OpenRA.Mods.Common.FileSystem
 				{
 					try
 					{
+						if (OperatingSystem.IsBrowser())
+							System.Console.WriteLine($"[fs] Content mount: {kv.Key} -> {kv.Value}");
 						fileSystem.Mount(kv.Key, kv.Value);
+						if (OperatingSystem.IsBrowser())
+							System.Console.WriteLine($"[fs] Content mounted OK: {kv.Key}");
 					}
-					catch
+					catch (System.Exception ex)
 					{
+						if (OperatingSystem.IsBrowser())
+							System.Console.Error.WriteLine($"[fs] Content mount FAILED: {kv.Key}: {ex.Message}");
 						isContentAvailable = false;
 					}
 				}

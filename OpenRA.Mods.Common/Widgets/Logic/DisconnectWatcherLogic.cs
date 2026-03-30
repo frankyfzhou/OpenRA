@@ -22,10 +22,11 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			var disconnected = false;
 			widget.Get<LogicTickerWidget>("DISCONNECT_WATCHER").OnTick = () =>
 			{
-				if (orderManager.Connection is not NetworkConnection connection)
-					return;
+				// Check both NetworkConnection and generic IConnection
+				var connState = orderManager.Connection.ConnectionState;
+				NetworkConnection connection = orderManager.Connection as NetworkConnection;
 
-				if (disconnected || connection.ConnectionState != ConnectionState.NotConnected)
+				if (disconnected || connState != ConnectionState.NotConnected)
 					return;
 
 				Game.RunAfterTick(() => Ui.OpenWindow("CONNECTIONFAILED_PANEL", new WidgetArgs

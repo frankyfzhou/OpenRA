@@ -26,12 +26,15 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 
 		void ConnectionStateChanged(OrderManager om, string password, NetworkConnection connection)
 		{
-			if (connection.ConnectionState == ConnectionState.Connected)
+			// On WASM, connection may be null — use OrderManager.Connection instead
+			var connState = connection?.ConnectionState ?? om.Connection.ConnectionState;
+
+			if (connState == ConnectionState.Connected)
 			{
 				CloseWindow();
 				onConnect();
 			}
-			else if (connection.ConnectionState == ConnectionState.NotConnected)
+			else if (connState == ConnectionState.NotConnected)
 			{
 				CloseWindow();
 
@@ -130,13 +133,15 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 				onRetry(pass);
 			};
 
-			var connectingDescText = FluentProvider.GetMessage(CouldNotConnectToTarget, "target", connection.Target);
+			var target = connection?.Target ?? CurrentServerSettings.Target;
+			var connectingDescText = FluentProvider.GetMessage(CouldNotConnectToTarget, "target", target);
 			widget.Get<LabelWidget>("CONNECTING_DESC").GetText = () => connectingDescText;
 
 			var connectionError = widget.Get<LabelWidget>("CONNECTION_ERROR");
+			var errorMsg = connection?.ErrorMessage ?? orderManager.Connection.ErrorMessage;
 			var connectionErrorText = orderManager.ServerError != null
 				? FluentProvider.GetMessage(orderManager.ServerError)
-				: connection.ErrorMessage ?? FluentProvider.GetMessage(UnknownError);
+				: errorMsg ?? FluentProvider.GetMessage(UnknownError);
 			connectionError.GetText = () => connectionErrorText;
 
 			var panelTitle = widget.Get<LabelWidget>("TITLE");
@@ -198,7 +203,9 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 
 			switchButton.OnClick = () =>
 			{
-				var launchCommand = $"Launch.URI={new UriBuilder("tcp", connection.EndPoint.Address.ToString(), connection.EndPoint.Port)}";
+				var launchCommand = connection?.EndPoint != null
+					? $"Launch.URI={new UriBuilder("tcp", connection.EndPoint.Address.ToString(), connection.EndPoint.Port)}"
+					: "";
 				Game.SwitchToExternalMod(CurrentServerSettings.ServerExternalMod, [launchCommand], () =>
 				{
 					orderManager.ServerError = ModSwitchFailed;

@@ -451,10 +451,26 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			Game.Settings.Server.Map = map;
 			Game.Settings.Save();
 
-			ConnectionLogic.Connect(Game.CreateLocalServer(map, isSkirmish: true),
-				"",
-				OpenSkirmishLobbyPanel,
-				() => { Game.CloseServer(); SwitchMenu(MenuType.Main); });
+			// On WASM, show a transition overlay and defer server creation to the next tick.
+			// This lets the browser paint the overlay before the synchronous work blocks the main thread.
+			if (OperatingSystem.IsBrowser())
+			{
+				Game.ShowTransitionOverlay?.Invoke("Loading game...");
+				Game.RunAfterTick(() =>
+				{
+					ConnectionLogic.Connect(Game.CreateLocalServer(map, isSkirmish: true),
+						"",
+						() => { Game.HideTransitionOverlay?.Invoke(); OpenSkirmishLobbyPanel(); },
+						() => { Game.HideTransitionOverlay?.Invoke(); Game.CloseServer(); SwitchMenu(MenuType.Main); });
+				});
+			}
+			else
+			{
+				ConnectionLogic.Connect(Game.CreateLocalServer(map, isSkirmish: true),
+					"",
+					OpenSkirmishLobbyPanel,
+					() => { Game.CloseServer(); SwitchMenu(MenuType.Main); });
+			}
 		}
 
 		void OpenMissionBrowserPanel(string map)

@@ -234,6 +234,8 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 
 		public static void OnQuit(World world)
 		{
+			Game.ShowTransitionOverlay?.Invoke("Returning to menu...");
+
 			// TODO: Create a mechanism to do things like this cleaner. Also needed for scripted missions
 			if (world.Type == WorldType.Regular)
 			{

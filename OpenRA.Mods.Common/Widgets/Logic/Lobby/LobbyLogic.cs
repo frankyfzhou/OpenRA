@@ -130,7 +130,9 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 		// Listen for connection failures
 		void ConnectionStateChanged(OrderManager om, string password, NetworkConnection connection)
 		{
-			if (connection.ConnectionState == ConnectionState.NotConnected)
+			var connState = connection?.ConnectionState ?? om.Connection.ConnectionState;
+
+			if (connState == ConnectionState.NotConnected)
 			{
 				// Show connection failed dialog
 				Ui.CloseWindow();
@@ -145,7 +147,8 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 					});
 				}
 
-				Action<string> onRetry = pass => ConnectionLogic.Connect(connection.Target, pass, OnConnect, onExit);
+				var target = connection?.Target ?? CurrentServerSettings.Target;
+				Action<string> onRetry = pass => ConnectionLogic.Connect(target, pass, OnConnect, onExit);
 
 				var switchPanel = CurrentServerSettings.ServerExternalMod != null ? "CONNECTION_SWITCHMOD_PANEL" : "CONNECTIONFAILED_PANEL";
 				Ui.OpenWindow(switchPanel, new WidgetArgs()
@@ -465,6 +468,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 				if (modData.MapCache[map.Uid].Status == MapStatus.Available)
 				{
 					gameStarting = true;
+					Game.ShowTransitionOverlay?.Invoke("Starting game...");
 					orderManager.IssueOrder(Order.Command("startgame"));
 				}
 				else
@@ -724,21 +728,33 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 		{
 			mapStatus = orderManager.LobbyInfo.GlobalSettings.MapStatus;
 			var uid = orderManager.LobbyInfo.GlobalSettings.Map;
+
+			Console.WriteLine($"[lobby] UpdateCurrentMap: uid={uid}, mapStatus={mapStatus}, current={map.Uid}");
+
 			if (map.Uid == uid)
 				return;
 
 			map = modData.MapCache[uid];
+			Console.WriteLine($"[lobby] Map lookup: uid={uid}, Status={map.Status}, Title={map.Title}");
+
 			if (map.GenerationArgs != null)
 				lastGeneratedMap = map.GenerationArgs;
 
 			// Tell the server that we have the map
 			mapAvailable = map.Status == MapStatus.Available;
 			if (mapAvailable)
+			{
+				Console.WriteLine($"[lobby] Map is available, notifying server");
 				CurrentMapBecameAvailable();
+			}
 
 			// We don't have the map
-			else if (map.Status != MapStatus.DownloadAvailable && Game.Settings.Game.AllowDownloading)
-				modData.MapCache.QueryRemoteMapDetails(services.MapRepository, [uid]);
+			else
+			{
+				Console.WriteLine($"[lobby] Map NOT available (Status={map.Status}), mapAvailable=false");
+				if (map.Status != MapStatus.DownloadAvailable && Game.Settings.Game.AllowDownloading)
+					modData.MapCache.QueryRemoteMapDetails(services.MapRepository, [uid]);
+			}
 		}
 
 		void UpdatePlayerList()
@@ -941,6 +957,9 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 
 		void UpdateDiscordStatus()
 		{
+			if (OperatingSystem.IsBrowser())
+				return;
+
 			var numberOfPlayers = 0;
 			var slots = 0;
 
