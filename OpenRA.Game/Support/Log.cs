@@ -46,14 +46,26 @@ namespace OpenRA
 			Channel = System.Threading.Channels.Channel.CreateUnbounded<ChannelData>();
 			ChannelWriter = Channel.Writer;
 
-			Thread = new Thread(DoWork)
+			// WASM: Thread.Start() throws PlatformNotSupportedException in single-threaded WASM.
+			// Fall back to synchronous logging (writes happen inline in Write()).
+			try
 			{
-				Name = "OpenRA Logging Thread"
-			};
+				Thread = new Thread(DoWork)
+				{
+					Name = "OpenRA Logging Thread"
+				};
 
-			Thread.Start(CancellationToken.Token);
+				Thread.Start(CancellationToken.Token);
 
-			Timer = new Timer(FlushToDisk, CancellationToken.Token, FlushInterval, Timeout.InfiniteTimeSpan);
+				Timer = new Timer(FlushToDisk, CancellationToken.Token, FlushInterval, Timeout.InfiniteTimeSpan);
+			}
+			catch (PlatformNotSupportedException)
+			{
+				// Running in WASM — no background thread available.
+				// Logging will flush synchronously.
+				Thread = null;
+				Timer = null;
+			}
 		}
 
 		static void FlushToDisk(object state)
@@ -159,19 +171,26 @@ namespace OpenRA
 
 		public static void Write(string channelName, string value)
 		{
+			if (Thread == null)
+			{
+				// WASM synchronous fallback: write directly
+				WriteValue(new ChannelData(channelName, value));
+				return;
+			}
+
 			ChannelWriter.TryWrite(new ChannelData(channelName, value));
 		}
 
 		public static void Write(string channelName, Exception e)
 		{
-			ChannelWriter.TryWrite(new ChannelData(channelName, $"{e.Message}{Environment.NewLine}{e.StackTrace}"));
+			Write(channelName, $"{e.Message}{Environment.NewLine}{e.StackTrace}");
 		}
 
 		public static void Dispose()
 		{
 			CancellationToken.Cancel();
-			Timer.Dispose();
-			Thread.Join();
+			Timer?.Dispose();
+			Thread?.Join();
 		}
 	}
 }

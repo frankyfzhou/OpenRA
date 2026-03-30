@@ -9,6 +9,7 @@
  */
 #endregion
 
+using System;
 using System.Collections.Frozen;
 using System.Linq;
 using OpenRA.Graphics;
@@ -41,6 +42,11 @@ namespace OpenRA.Mods.Common.Scripting
 
 		void IWorldLoaded.WorldLoaded(World world, WorldRenderer worldRenderer)
 		{
+			// Native Lua (lua51) is not available on WASM — skip scripting.
+			// Shell maps will render as static backgrounds without Lua animations.
+			if (OperatingSystem.IsBrowser())
+				return;
+
 			var scripts = info.Scripts ?? Enumerable.Empty<string>();
 			Context = new ScriptContext(world, worldRenderer, scripts);
 			Context.WorldLoaded();
@@ -48,7 +54,7 @@ namespace OpenRA.Mods.Common.Scripting
 
 		void ITick.Tick(Actor self)
 		{
-			Context.Tick();
+			Context?.Tick();
 		}
 
 		void INotifyActorDisposing.Disposing(Actor self)

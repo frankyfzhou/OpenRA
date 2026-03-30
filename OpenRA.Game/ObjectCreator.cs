@@ -45,6 +45,23 @@ namespace OpenRA
 
 		static void LoadAssembly(List<Assembly> assemblyList, string resolvedPath)
 		{
+			// WASM: Assembly files don't exist on the virtual filesystem.
+			// They are pre-loaded by the .NET WASM runtime. Look them up by name.
+			if (!File.Exists(resolvedPath))
+			{
+				var assemblyName = Path.GetFileNameWithoutExtension(resolvedPath);
+				var existing = AppDomain.CurrentDomain.GetAssemblies()
+					.FirstOrDefault(a => a.GetName().Name == assemblyName);
+
+				if (existing != null)
+				{
+					assemblyList.Add(existing);
+					return;
+				}
+
+				throw new FileNotFoundException($"Assembly not found and not pre-loaded: {resolvedPath}");
+			}
+
 			// .NET doesn't provide any way of querying the metadata of an assembly without either:
 			//   (a) loading duplicate data into the application domain, breaking the world.
 			//   (b) crashing if the assembly has already been loaded.

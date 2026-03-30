@@ -33,6 +33,10 @@ namespace OpenRA
 			this.package = package;
 			this.classification = classification;
 
+			// FileSystemWatcher is not supported on WASM/browser
+			if (OperatingSystem.IsBrowser())
+				return;
+
 			watcher = new FileSystemWatcher(package.Name);
 			watcher.Changed += (_, e) => AddMapAction(MapAction.Update, e.FullPath);
 			watcher.Created += (_, e) => AddMapAction(MapAction.Add, e.FullPath);
@@ -45,7 +49,7 @@ namespace OpenRA
 
 		public void Dispose()
 		{
-			watcher.Dispose();
+			watcher?.Dispose();
 		}
 
 		void AddMapAction(MapAction mapAction, string fullpath, string oldFullPath = null)

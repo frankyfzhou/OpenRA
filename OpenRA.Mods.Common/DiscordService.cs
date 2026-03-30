@@ -63,6 +63,10 @@ namespace OpenRA.Mods.Common
 			if (Game.Renderer == null)
 				return;
 
+			// WASM: Discord RPC uses Process.GetCurrentProcess() which is not supported.
+			if (OperatingSystem.IsBrowser())
+				return;
+
 			client = new DiscordRpcClient(ApplicationId, autoEvents: true)
 			{
 				SkipIdenticalPresence = false

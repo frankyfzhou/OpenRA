@@ -161,7 +161,8 @@ namespace OpenRA.Primitives
 			// Special case FileStream - instead of creating an in-memory copy,
 			// just reference the portion of the on-disk file that we need to save memory.
 			// We use GetType instead of 'is' here since we can't handle any derived classes of FileStream.
-			if (parentStream.GetType() == typeof(FileStream))
+			// On WASM, File.OpenRead on the virtual filesystem can hang, so always copy to MemoryStream.
+			if (!OperatingSystem.IsBrowser() && parentStream.GetType() == typeof(FileStream))
 			{
 				var path = ((FileStream)parentStream).Name;
 				return new SegmentStream(File.OpenRead(path), nestedOffset, count);

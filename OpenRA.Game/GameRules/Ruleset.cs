@@ -146,7 +146,8 @@ namespace OpenRA
 				ruleset = new Ruleset(actors, weapons, voices, notifications, music, null, modelSequences);
 			}
 
-			if (modData.IsOnMainThread)
+			// WASM is single-threaded. Task + busy-wait deadlocks.
+			if (modData.IsOnMainThread && !OperatingSystem.IsBrowser())
 			{
 				modData.HandleLoadingProgress();
 
@@ -208,7 +209,8 @@ namespace OpenRA
 				ruleset = new Ruleset(actors, weapons, voices, notifications, music, terrainInfo, modelSequences);
 			}
 
-			if (modData.IsOnMainThread)
+			// WASM is single-threaded. Task + busy-wait deadlocks.
+			if (modData.IsOnMainThread && !OperatingSystem.IsBrowser())
 			{
 				modData.HandleLoadingProgress();
 
