@@ -401,6 +401,169 @@ namespace OpenRA.Server
 			{ IsBackground = true, Name = "ServerThread" }.Start();
 		}
 
+		/// <summary>In-process constructor for WASM — no TCP listeners, no background thread.
+		/// Call <see cref="TickInProcess"/> from the game loop, and
+		/// <see cref="AcceptInProcessConnection"/> to add a local client.</summary>
+		public Server(ServerSettings settings, ModData modData, ServerType type)
+		{
+			Log.AddChannel("server", "server.log", true);
+
+			Type = type;
+			Settings = settings;
+			Settings.Name = Game.Settings.SanitizedServerName(Settings.Name);
+			ModData = modData;
+
+			playerDatabase = modData.GetOrCreate<PlayerDatabase>();
+			randomSeed = (int)DateTime.Now.ToBinary();
+
+			foreach (var trait in modData.Manifest.ServerTraits)
+				serverTraits.Add(modData.ObjectCreator.CreateObject<ServerTrait>(trait));
+
+			serverTraits.TrimExcess();
+
+			MapStatusCache = new MapStatusCache(modData, MapStatusChanged, false);
+
+			playerMessageTracker = new PlayerMessageTracker(this, DispatchOrdersToClient, SendFluentMessageTo);
+			VoteKickTracker = new VoteKickTracker(this);
+
+			LobbyInfo = new Session
+			{
+				GlobalSettings =
+				{
+					RandomSeed = randomSeed,
+					ServerName = settings.Name,
+					EnableSingleplayer = true,
+					EnableMapGeneration = settings.EnableMapGeneration,
+					EnableSyncReports = settings.EnableSyncReports,
+					GameUid = Guid.NewGuid().ToString(),
+					Dedicated = false
+				}
+			};
+
+			// Run server startup traits synchronously (sets map, lobby state)
+			foreach (var t in serverTraits.WithInterface<INotifyServerStart>())
+				t.ServerStarted(this);
+
+			Log.Write("server", $"[InProcess] Initial mod: {ModData.Manifest.Id}");
+			Log.Write("server", $"[InProcess] Initial map: {LobbyInfo.GlobalSettings.Map}");
+		}
+
+		/// <summary>Add a local in-process client connection. Returns the server-side Connection.
+		/// Skips TCP handshake — directly validates and adds client to lobby.</summary>
+		public Connection AcceptInProcessConnection()
+		{
+			var playerIndex = ChooseFreePlayerIndex();
+			var conn = new Connection(playerIndex, "in-process");
+
+			Conns.Add(conn);
+
+			// Directly set up the client in the lobby (bypassing handshake)
+			var client = new Session.Client
+			{
+				Name = Game.Settings.Player.Name,
+				IPAddress = "127.0.0.1",
+				Index = conn.PlayerIndex,
+				PreferredColor = Game.Settings.Player.Color,
+				Color = Game.Settings.Player.Color,
+				Faction = "Random",
+				SpawnPoint = 0,
+				Team = 0,
+				Handicap = 0,
+				State = Session.ClientState.Invalid,
+			};
+
+			client.Slot = LobbyInfo.FirstEmptySlot();
+			client.IsAdmin = !LobbyInfo.Clients.Any(c => c.IsAdmin);
+
+			if (client.Slot != null)
+				SyncClientToPlayerReference(client, Map.Players.Players[client.Slot]);
+			else
+				client.Color = Primitives.Color.White;
+
+			LobbyInfo.Clients.Add(client);
+			conn.Validated = true;
+
+			Log.Write("server", $"[InProcess] Client {conn.PlayerIndex}: Accepted in-process connection.");
+
+			foreach (var t in serverTraits.WithInterface<IClientJoined>())
+				t.ClientJoined(this, conn);
+
+			SyncLobbyInfo();
+
+			return conn;
+		}
+
+		/// <summary>Accept a remote client via in-process queues (for browser-hosted MP via relay).
+		/// Unlike AcceptInProcessConnection, this goes through the full handshake protocol
+		/// so remote clients are properly validated.</summary>
+		public Connection AcceptRemoteInProcessConnection()
+		{
+			if (State != ServerState.WaitingPlayers)
+				return null;
+
+			var token = Convert.ToBase64String(OpenRA.Exts.MakeArray(256, _ => (byte)Random.Next()));
+			var playerIndex = ChooseFreePlayerIndex();
+			var conn = new Connection(playerIndex, token);
+
+			try
+			{
+				// Send handshake protocol + client index (same as AcceptConnection)
+				var ms = new MemoryStream(8);
+				ms.Write(ProtocolVersion.Handshake);
+				ms.Write(conn.PlayerIndex);
+				conn.TrySendData(ms.ToArray());
+
+				// Send HandshakeRequest order
+				var request = new HandshakeRequest
+				{
+					Mod = ModData.Manifest.Id,
+					Version = ModData.Manifest.Metadata.Version,
+					AuthToken = token
+				};
+
+				DispatchOrdersToClient(conn, 0, 0, new Order("HandshakeRequest", null, false)
+				{
+					Type = OrderType.Handshake,
+					IsImmediate = true,
+					TargetString = request.Serialize()
+				}.Serialize());
+			}
+			catch (Exception e)
+			{
+				Log.Write("server", $"[InProcess] Handshake for remote client {conn.PlayerIndex} failed: {e}");
+			}
+
+			Conns.Add(conn);
+			Log.Write("server", $"[InProcess] Remote client {conn.PlayerIndex}: Awaiting handshake via relay bridge.");
+
+			return conn;
+		}
+
+		/// <summary>Process pending events and tick traits (call from game loop on WASM).</summary>
+		public void TickInProcess()
+		{
+			if (State == ServerState.ShuttingDown)
+				return;
+
+			while (events.TryTake(out var e, 0))
+				e.Invoke(this);
+
+			foreach (var t in serverTraits.WithInterface<ITick>())
+				t.Tick(this);
+
+			if (State == ServerState.GameStarted)
+			{
+				foreach (var (playerIndex, scale) in orderBuffer.GetTickScales())
+				{
+					var frame = CreateTickScaleFrame(scale);
+					var con = Conns.SingleOrDefault(c => c.PlayerIndex == playerIndex);
+
+					if (con != null && con.Validated)
+						DispatchFrameToClient(con, playerIndex, frame);
+				}
+			}
+		}
+
 		int nextPlayerIndex;
 		public int ChooseFreePlayerIndex()
 		{
@@ -417,7 +580,7 @@ namespace OpenRA.Server
 			events.Add(new ConnectionPingEvent(conn, pingHistory, queueLength));
 		}
 
-		internal void OnConnectionDisconnect(Connection conn)
+		public void OnConnectionDisconnect(Connection conn)
 		{
 			events.Add(new ConnectionDisconnectEvent(conn));
 		}

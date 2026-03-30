@@ -21,7 +21,7 @@ using System.Threading;
 
 namespace OpenRA.Server
 {
-	public sealed class Connection : IDisposable
+	public class Connection : IDisposable
 	{
 		public const int MaxOrderLength = 131072;
 
@@ -44,6 +44,10 @@ namespace OpenRA.Server
 		readonly BlockingCollection<byte[]> sendQueue = [];
 		readonly Queue<int> pingHistory = [];
 
+		// In-process outbound queue (for reading by InProcessClientConnection)
+		readonly ConcurrentQueue<byte[]> inProcessOutQueue = new();
+		readonly bool isInProcess;
+
 		public Connection(Server server, Socket socket, string authToken)
 		{
 			PlayerIndex = server.ChooseFreePlayerIndex();
@@ -56,6 +60,31 @@ namespace OpenRA.Server
 				IsBackground = true
 			}.Start((server, socket));
 		}
+
+		/// <summary>In-process constructor — no TCP socket, no background thread.</summary>
+		public Connection(int playerIndex, string authToken)
+		{
+			PlayerIndex = playerIndex;
+			AuthToken = authToken;
+			EndPoint = null;
+			isInProcess = true;
+		}
+
+		/// <summary>Feed data to the server from client-side (in-process mode only).</summary>
+		public void FeedPacket(Server server, int frame, byte[] data)
+		{
+			lastReceivedTime = Game.RunTime;
+			server.OnConnectionPacket(this, frame, data);
+		}
+
+		/// <summary>Try to dequeue a frame sent by the server (in-process mode only).</summary>
+		public bool TryDequeueOutbound(out byte[] data)
+		{
+			return inProcessOutQueue.TryDequeue(out data);
+		}
+
+		/// <summary>Check whether the outbound queue has data (in-process mode only).</summary>
+		public bool HasOutbound() => !inProcessOutQueue.IsEmpty;
 
 		static byte[] CreatePingFrame()
 		{
@@ -194,6 +223,12 @@ namespace OpenRA.Server
 
 		public bool TrySendData(byte[] data)
 		{
+			if (isInProcess)
+			{
+				inProcessOutQueue.Enqueue(data);
+				return true;
+			}
+
 			if (sendQueue.IsAddingCompleted)
 				return false;
 
@@ -211,6 +246,9 @@ namespace OpenRA.Server
 
 		public void Dispose()
 		{
+			if (isInProcess)
+				return;
+
 			// Tell the sendReceiveThread that the socket should be closed
 			sendQueue.CompleteAdding();
 		}

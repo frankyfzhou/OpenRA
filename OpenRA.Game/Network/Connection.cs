@@ -37,6 +37,12 @@ namespace OpenRA.Network
 		void SendImmediate(IEnumerable<Order> orders);
 		void SendSync(int frame, int syncHash, ulong defeatState);
 		void Receive(OrderManager orderManager);
+
+		/// <summary>Connection state for network connections. Defaults to Connected for local connections.</summary>
+		ConnectionState ConnectionState => ConnectionState.Connected;
+
+		/// <summary>Error message for failed connections.</summary>
+		string ErrorMessage => null;
 	}
 
 	public sealed class EchoConnection : IConnection
