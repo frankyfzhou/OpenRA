@@ -1,0 +1,157 @@
+# Red Alert Classic Balance Overrides
+# Restores original Red Alert Aftermath (v3.03) unit stats, costs, and mechanics.
+# Applied AFTER all RA rules — later values win in MiniYaml merge.
+
+# === P0: High-impact balance ===
+
+# Refinery: 1500 → 2000
+PROC:
+	Valued:
+		Cost: 2000
+
+# Heavy Tank: 1150/60k → 950/40k
+3TNK:
+	Valued:
+		Cost: 950
+	Health:
+		HP: 40000
+
+# Mammoth Tank: 2000/90k → 1700/60k
+4TNK:
+	Valued:
+		Cost: 1700
+	Health:
+		HP: 60000
+
+# MIG: 2000 → 1200
+MIG:
+	Valued:
+		Cost: 1200
+
+# Chronosphere: 1500 → 2800
+PDOX:
+	Valued:
+		Cost: 2800
+
+# Iron Curtain: 2000 → 2800
+IRON:
+	Valued:
+		Cost: 2800
+
+# === P1: Medium-impact ===
+
+# MCV: 2000 → 2500
+MCV:
+	Valued:
+		Cost: 2500
+
+# APC: 600 → 800
+APC:
+	Valued:
+		Cost: 800
+
+# V2 Rocket Launcher: 900 → 700
+V2RL:
+	Valued:
+		Cost: 700
+
+# Artillery: 850 → 600
+ARTY:
+	Valued:
+		Cost: 600
+
+# Harvester: 1100 → 1400
+HARV:
+	Valued:
+		Cost: 1400
+
+# Silo capacity: 3000 → 1500
+SILO:
+	StoresPlayerResources:
+		Capacity: 1500
+
+# Gap Generator: 800 → 500
+GAP:
+	Valued:
+		Cost: 500
+
+# Tesla Coil: 1200 → 1500
+TSLA:
+	Valued:
+		Cost: 1500
+
+# Service Depot: 800 → 1200
+FIX:
+	Valued:
+		Cost: 1200
+
+# Medium Tank: 850 → 800
+2TNK:
+	Valued:
+		Cost: 800
+
+# === P2: Minor ===
+
+# Engineer: 400 → 500, HP 6000 → 2500
+E6:
+	Valued:
+		Cost: 500
+	Health:
+		HP: 2500
+
+# Medic: 200 → 800
+MEDI:
+	Valued:
+		Cost: 800
+
+# Mechanic: 200 → 800
+MECH:
+	Valued:
+		Cost: 800
+
+# Shock Trooper: 1200 → 1600, HP 8000 → 11000, prereq: drop tsla (classic requires tech center only)
+SHOK:
+	Buildable:
+		Prerequisites: ~barr, stek, ~infantry.russia, ~techlevel.high
+	Valued:
+		Cost: 1600
+	Health:
+		HP: 11000
+
+# Grenadier: 150 → 160
+E2:
+	Valued:
+		Cost: 160
+
+# Demo Truck: 2000 → 1500
+DTRK:
+	Valued:
+		Cost: 1500
+
+# Cruiser: 2400 → 2000
+CA:
+	Valued:
+		Cost: 2000
+
+# Turret: 500 → 600
+GUN:
+	Valued:
+		Cost: 600
+
+# Light Tank HP: 23000 → 30000
+1TNK:
+	Health:
+		HP: 30000
+
+# Flamethrower: remove flame tower prereq
+E4:
+	Buildable:
+		Prerequisites: ~barr, ~techlevel.low
+
+# === Build radius: classic RA has no ConYard range cap ===
+
+# Construction Yard: remove 16-cell build radius limit
+# Classic RA allowed building anywhere by chaining outward with no radius cap
+FACT:
+	BaseProvider:
+		Range: 128c0

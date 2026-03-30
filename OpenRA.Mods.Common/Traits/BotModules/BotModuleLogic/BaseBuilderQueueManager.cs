@@ -32,7 +32,6 @@ namespace OpenRA.Mods.Common.Traits
 		Actor[] playerBuildings;
 		int failCount;
 		int failRetryTicks;
-		string lastFailedBuilding;
 		int checkForBasesTicks;
 		int cachedBases;
 		int cachedBuildings;
@@ -65,18 +64,14 @@ namespace OpenRA.Mods.Common.Traits
 			{
 				if (baseBuilder.BaseExpansionModules != null && baseCenterKeepsFailing != null)
 				{
-					// we should not give a nudge for defence
-					if (!baseBuilder.Info.DefenseTypes.Contains(lastFailedBuilding))
-					{
-						var stuckConyard = baseBuilder.ConstructionYardBuildings.Actors
-							.Where(a => (a.Location - baseCenterKeepsFailing.Value).LengthSquared <= baseBuilder.Info.MaxBaseRadius * baseBuilder.Info.MaxBaseRadius)
-							.MinByOrDefault(a => (a.Location - baseCenterKeepsFailing.Value).LengthSquared);
+					var stuckConyard = baseBuilder.ConstructionYardBuildings.Actors
+						.Where(a => (a.Location - baseCenterKeepsFailing.Value).LengthSquared <= baseBuilder.Info.MaxBaseRadius * baseBuilder.Info.MaxBaseRadius)
+						.MinByOrDefault(a => (a.Location - baseCenterKeepsFailing.Value).LengthSquared);
 
-						if (stuckConyard != null)
-						{
-							foreach (var be in baseBuilder.BaseExpansionModules)
-								be.UpdateExpansionParams(bot, false, true, stuckConyard);
-						}
+					if (stuckConyard != null)
+					{
+						foreach (var be in baseBuilder.BaseExpansionModules)
+							be.UpdateExpansionParams(bot, false, true, stuckConyard);
 					}
 
 					failCount = 0;
@@ -214,7 +209,6 @@ namespace OpenRA.Mods.Common.Traits
 					{
 						AIUtils.BotDebug($"{player} has nowhere to place {currentBuilding.Item}");
 						bot.QueueOrder(Order.CancelProduction(queue.Actor, currentBuilding.Item, 1));
-						lastFailedBuilding = currentBuilding.Item;
 						if (baseBuilder.BaseExpansionModules == null)
 						{
 							cachedBuildings = world.ActorsHavingTrait<Building>().Count(a => a.Owner == player);
@@ -458,7 +452,7 @@ namespace OpenRA.Mods.Common.Traits
 				return (null, null, 0);
 
 			// Find the buildable cell that is closest to pos and centered around center
-			(CPos? Location, CPos Center, int Variant) FindPos(CPos center, CPos target, int minRange, int maxRange, int? tryMaintainRange = null)
+			(CPos? Location, CPos Center, int Variant) FindPos(CPos center, CPos target, int minRange, int maxRange)
 			{
 				var actorVariant = 0;
 				var buildingVariantInfo = actorInfo.TraitInfoOrDefault<PlaceBuildingVariantsInfo>();
@@ -470,14 +464,7 @@ namespace OpenRA.Mods.Common.Traits
 				// Sort by distance to target if we have one
 				if (center != target)
 				{
-					if (tryMaintainRange == null)
-						cells = cells.OrderBy(c => (c - target).LengthSquared);
-					else
-					{
-						var theta = tryMaintainRange;
-						var deta = (target - center).Length - tryMaintainRange;
-						cells = cells.OrderBy(c => deta * (c - target).LengthSquared + theta * (c - center).LengthSquared);
-					}
+					cells = cells.OrderBy(c => (c - target).LengthSquared);
 
 					// Rotate building if we have a Facings in buildingVariantInfo.
 					// If we don't have Facings in buildingVariantInfo, use a random variant
@@ -538,20 +525,20 @@ namespace OpenRA.Mods.Common.Traits
 				return (null, center, 0);
 			}
 
-			var baseCenter = type == BuildingType.Defense ? baseBuilder.GetDefenseBaseCenter() : baseBuilder.GetRandomBaseCenter();
+			var baseCenter = baseBuilder.GetRandomBaseCenter();
 
 			switch (type)
 			{
 				case BuildingType.Defense:
 
-					// Build near the closest enemy
-					var closestEnemy = world.ActorsHavingTrait<Targetable>()
-						.Where(a => !a.Disposed && a.IsInWorld && player.RelationshipWith(a.Owner) == PlayerRelationship.Enemy)
-						.ClosestToIgnoringPath(world.Map.CenterOfCell(baseCenter));
+					// Build near the closest enemy structure
+					var closestEnemy = world.ActorsHavingTrait<Building>()
+						.Where(a => !a.Disposed && player.RelationshipWith(a.Owner) == PlayerRelationship.Enemy)
+						.ClosestToIgnoringPath(world.Map.CenterOfCell(baseBuilder.DefenseCenter));
 
 					var targetCell = closestEnemy != null ? closestEnemy.Location : baseCenter;
 
-					return FindPos(baseCenter, targetCell, baseBuilder.Info.MinBaseRadius, baseBuilder.Info.MaxBaseRadius, baseBuilder.Info.TryMaintainDefenseRange);
+					return FindPos(baseBuilder.DefenseCenter, targetCell, baseBuilder.Info.MinimumDefenseRadius, baseBuilder.Info.MaximumDefenseRadius);
 
 				case BuildingType.Refinery:
 

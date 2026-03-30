@@ -103,8 +103,11 @@ namespace OpenRA.Mods.Common.Traits
 		[Desc("Chance that the AI will place the defenses in the direction of the closest enemy building.")]
 		public readonly int PlaceDefenseTowardsEnemyChance = 100;
 
-		[Desc("Desired range at which to build defensive structures near a combat hotspot if possible.")]
-		public readonly int TryMaintainDefenseRange = 5;
+		[Desc("Minimum range at which to build defensive structures near a combat hotspot.")]
+		public readonly int MinimumDefenseRadius = 5;
+
+		[Desc("Maximum range at which to build defensive structures near a combat hotspot.")]
+		public readonly int MaximumDefenseRadius = 20;
 
 		[Desc("Try to build another production building if there is too much cash.")]
 		public readonly int NewProductionCashThreshold = 5000;
@@ -170,21 +173,13 @@ namespace OpenRA.Mods.Common.Traits
 	{
 		public CPos GetRandomBaseCenter()
 		{
-			var randomConstructionYard = ConstructionYardBuildings.Actors.Where(a => !a.IsDead)
+			var randomConstructionYard = ConstructionYardBuildings.Actors
 				.RandomOrDefault(world.LocalRandom);
 
 			return randomConstructionYard?.Location ?? initialBaseCenter;
 		}
 
-		public CPos GetDefenseBaseCenter()
-		{
-			var defenceConstructionYard = DefenseCenter != null ? ConstructionYardBuildings.Actors.OrderBy(a => (DefenseCenter.Value - a.Location).LengthSquared)
-				.FirstOrDefault(a => !a.IsDead) : null;
-
-			return defenceConstructionYard?.Location ?? GetRandomBaseCenter();
-		}
-
-		public CPos? DefenseCenter { get; private set; }
+		public CPos DefenseCenter { get; private set; }
 
 		// Actor, ActorCount.
 		public Dictionary<string, int> BuildingsBeingProduced = [];
