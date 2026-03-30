@@ -50,7 +50,104 @@ namespace OpenRA
 		internal static OrderManager OrderManager;
 		static Server.Server server;
 
+		/// <summary>The current in-process server (if any). Used by the room bridge for browser-hosted MP.</summary>
+		public static Server.Server InProcessServer => server;
+
+		/// <summary>
+		/// Callback to create a relay room for browser-hosted MP.
+		/// Set by the web platform during initialization.
+		/// </summary>
+		public static Action CreateRelayRoom;
+
+		/// <summary>
+		/// Callback to tick remote guest connections (drain server outbound to relay).
+		/// Set by the web platform during initialization.
+		/// </summary>
+		public static Action TickRemoteConnections;
+
 		public static MersenneTwister CosmeticRandom = new(); // not synced
+
+		/// <summary>
+		/// Factory for creating IConnection on WASM (WebSocket-based).
+		/// Set by the platform during initialization.
+		/// </summary>
+		public static Func<ConnectionTarget, IConnection> CreateWebConnection;
+
+		/// <summary>
+		/// Pending in-process connection for WASM skirmish.
+		/// Set by CreateLocalServer on WASM, consumed by JoinServer.
+		/// </summary>
+		internal static IConnection PendingInProcessConnection;
+
+		/// <summary>
+		/// Room ID to auto-join as guest on boot. Set by web platform if ?room=X URL param present.
+		/// </summary>
+		public static string PendingRoomJoin;
+
+		/// <summary>
+		/// Factory to create a guest room connection. Set by web platform during initialization.
+		/// </summary>
+		public static Func<string, IConnection> CreateRoomConnection;
+
+		/// <summary>
+		/// Auto-join a relay room after the main menu loads.
+		/// Called once from OnShellmapLoaded if PendingRoomJoin is set.
+		/// </summary>
+		public static void TryAutoJoinRoom()
+		{
+			var roomId = PendingRoomJoin;
+			if (string.IsNullOrEmpty(roomId) || CreateRoomConnection == null)
+				return;
+
+			PendingRoomJoin = null;
+			Console.WriteLine($"[room-join] Auto-joining room: {roomId}");
+
+			RunAfterTick(() =>
+			{
+				try
+				{
+					PendingInProcessConnection = CreateRoomConnection(roomId);
+					var om = JoinServer(new ConnectionTarget("room", 0), "");
+
+					void OnStateChanged(OrderManager orderManager, string password, NetworkConnection conn)
+					{
+						var state = orderManager.Connection.ConnectionState;
+						if (state == ConnectionState.Connected)
+						{
+							ConnectionStateChanged -= OnStateChanged;
+							Console.WriteLine("[room-join] Connected to room, opening lobby");
+
+							RunAfterTick(() =>
+							{
+								OpenWindow("SERVER_LOBBY", new WidgetArgs
+								{
+									{ "onStart", (Action)(() => { }) },
+									{ "onExit", (Action)(() => Disconnect()) },
+									{ "skirmishMode", false }
+								});
+							});
+						}
+						else if (state == ConnectionState.NotConnected)
+						{
+							ConnectionStateChanged -= OnStateChanged;
+							Console.WriteLine($"[room-join] Connection failed: {orderManager.Connection.ErrorMessage}");
+						}
+					}
+
+					ConnectionStateChanged += OnStateChanged;
+				}
+				catch (Exception ex)
+				{
+					Console.Error.WriteLine($"[room-join] Auto-join failed: {ex.Message}");
+				}
+			});
+		}
+
+		/// <summary>
+		/// WASM transition overlay callbacks. Set by WasmMain during initialization.
+		/// </summary>
+		public static Action<string> ShowTransitionOverlay;
+		public static Action HideTransitionOverlay;
 
 		public static Renderer Renderer;
 		public static Sound Sound;
@@ -65,9 +162,25 @@ namespace OpenRA
 
 		public static OrderManager JoinServer(ConnectionTarget endpoint, string password, bool recordReplay = true)
 		{
-			var newConnection = new NetworkConnection(endpoint);
-			if (recordReplay)
-				newConnection.StartRecording(() => TimestampedFilename());
+			IConnection newConnection;
+			if (PendingInProcessConnection != null)
+			{
+				// In-process connection for WASM skirmish (set by CreateLocalServer)
+				newConnection = PendingInProcessConnection;
+				PendingInProcessConnection = null;
+			}
+			else if (OperatingSystem.IsBrowser())
+			{
+				// On WASM, use a platform-provided IConnection factory
+				newConnection = CreateWebConnection(endpoint);
+			}
+			else
+			{
+				var networkConn = new NetworkConnection(endpoint);
+				if (recordReplay)
+					networkConn.StartRecording(() => TimestampedFilename());
+				newConnection = networkConn;
+			}
 
 			var om = new OrderManager(newConnection);
 			JoinInner(om);
@@ -75,7 +188,7 @@ namespace OpenRA
 			CurrentServerSettings.Target = endpoint;
 
 			lastConnectionState = ConnectionState.PreConnecting;
-			ConnectionStateChanged(OrderManager, password, newConnection);
+			ConnectionStateChanged(OrderManager, password, newConnection as NetworkConnection);
 
 			return om;
 		}
@@ -198,7 +311,7 @@ namespace OpenRA
 			// Dispose of the old world before creating a new one.
 			worldRenderer?.Dispose();
 
-			Cursor.SetCursor(null);
+			Cursor?.SetCursor(null);
 			BeforeGameStart();
 
 			using (new PerfTimer("NewWorld"))
@@ -241,16 +354,11 @@ namespace OpenRA
 
 			OrderManager.StartGame();
 			worldRenderer.RefreshPalette();
-			Cursor.SetCursor(ChromeMetrics.Get<string>("DefaultCursor"));
+			Cursor?.SetCursor(ChromeMetrics.Get<string>("DefaultCursor"));
 
 			// Now loading is completed, now is the ideal time to run a GC and compact the LOH.
-			// - All the temporary garbage created during loading can be collected.
-			// - Live objects are likely to live for the length of the game or longer,
-			//   thus promoting them into a higher generation is not an issue.
-			// - We can remove any fragmentation in the LOH caused by temporary loading garbage.
-			// - A loading screen is visible, so a delay won't matter to the user.
-			//   Much better to clean up now then to drop frames during gameplay for GC pauses.
-			GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
+			if (!OperatingSystem.IsBrowser())
+				GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
 			GC.Collect();
 
 			// PostLoadComplete is designed for anything that should trigger at the very end of loading.
@@ -258,6 +366,11 @@ namespace OpenRA
 			OrderManager.World.PostLoadComplete(worldRenderer);
 
 			AfterGameStart();
+
+			// Hide transition overlay after all heavy loading is done.
+			// The overlay was shown in a previous tick (at button click),
+			// giving the browser time to paint it before the blocking work.
+			HideTransitionOverlay?.Invoke();
 		}
 
 		public static void RestartGame()
@@ -458,8 +571,14 @@ namespace OpenRA
 			InitializeMod(manifest, args);
 		}
 
+		public static IPlatform RegisteredPlatform;
+
 		public static IPlatform CreatePlatform(string platformName)
 		{
+			// Allow pre-registered platform (used by WASM where DLL loading is not available)
+			if (RegisteredPlatform != null)
+				return RegisteredPlatform;
+
 			var rendererPath = Path.Combine(Platform.BinDir, "OpenRA.Platforms." + platformName + ".dll");
 
 			var loader = new AssemblyLoader(rendererPath);
@@ -499,21 +618,48 @@ namespace OpenRA
 
 			Sound.StopVideo();
 
+			Console.WriteLine("[init] Creating ModData...");
 			ModData = new ModData(manifest, Mods, true);
+			Console.WriteLine("[init] ModData created");
 
 			LocalPlayerProfile = new LocalPlayerProfile(Path.Combine(Platform.SupportDir, Settings.Game.AuthProfile), ModData.GetOrCreate<PlayerDatabase>());
 
-			if (!ModData.LoadScreen.BeforeLoad(ModData))
+			// On WASM/browser, skip the content installation check — content is bundled
+			if (!OperatingSystem.IsBrowser() && !ModData.LoadScreen.BeforeLoad(ModData))
 				return;
 
+			Console.WriteLine("[init] InitializeLoaders...");
 			ModData.InitializeLoaders(ModData.DefaultFileSystem);
+			Console.WriteLine("[init] InitializeFonts...");
 			Renderer.InitializeFonts(ModData);
 
-			using (new PerfTimer("LoadMaps"))
-				ModData.MapCache.LoadMaps(ModData);
+			Console.WriteLine("[init] LoadMaps...");
+			if (OperatingSystem.IsBrowser())
+			{
+				Console.WriteLine("[init] WASM: deferring map loading to WasmMain (async with progress)");
+				// Maps will be loaded asynchronously by WasmMain.Initialize() after this returns.
+				// This allows the browser event loop to run between map batches, keeping the UI responsive.
+			}
+			else
+				using (new PerfTimer("LoadMaps"))
+					ModData.MapCache.LoadMaps(ModData);
+			Console.WriteLine("[init] Maps loaded");
 
 			Cursor?.Dispose();
-			Cursor = new CursorManager(ModData);
+			Console.WriteLine("[init] Creating CursorManager...");
+			try
+			{
+				Cursor = new CursorManager(ModData);
+				Console.WriteLine("[init] CursorManager created");
+			}
+			catch (Exception ex)
+			{
+				Console.Error.WriteLine($"[init] CursorManager failed: {ex.Message}");
+				if (OperatingSystem.IsBrowser())
+					Console.Error.WriteLine("[init] Continuing without CursorManager on WASM");
+				else
+					throw;
+			}
 
 			var metadata = ModData.Manifest.Metadata;
 			if (!string.IsNullOrEmpty(metadata.WindowTitleTranslated))
@@ -526,8 +672,9 @@ namespace OpenRA
 			PerfHistory.Items["render_flip"].HasNormalTick = false;
 			PerfHistory.Items["terrain_lighting"].HasNormalTick = false;
 
+			Console.WriteLine("[init] JoinLocal...");
 			JoinLocal();
-
+			Console.WriteLine("[init] StartGame...");
 			ModData.LoadScreen.StartGame(args);
 		}
 
@@ -545,10 +692,34 @@ namespace OpenRA
 
 		public static void LoadShellMap()
 		{
-			var shellmap = ChooseShellmap();
+			// On WASM, try to load shell map but fall back gracefully
+			if (OperatingSystem.IsBrowser())
+			{
+				try
+				{
+					var shellmap = ChooseShellmap();
+					Console.WriteLine($"[init] Loading shell map: {shellmap}");
+					using (new PerfTimer("StartGame"))
+					{
+						StartGame(shellmap, WorldType.Shellmap);
+						OnShellmapLoaded();
+					}
+
+					return;
+				}
+				catch (Exception ex)
+				{
+					Console.Error.WriteLine($"[init] Shell map failed: {ex.Message}");
+					Console.Error.WriteLine($"[init] Shell map stack: {ex.StackTrace}");
+					OnShellmapLoaded();
+					return;
+				}
+			}
+
+			var shellmap2 = ChooseShellmap();
 			using (new PerfTimer("StartGame"))
 			{
-				StartGame(shellmap, WorldType.Shellmap);
+				StartGame(shellmap2, WorldType.Shellmap);
 				OnShellmapLoaded();
 			}
 		}
@@ -565,6 +736,83 @@ namespace OpenRA
 
 			return shellmap;
 		}
+
+		// WASM shell map loading broken into discrete steps for async progress reporting.
+		// Each step is called separately from WasmMain with browser yields between them
+		// so the progress bar updates visually during the long loading phase.
+
+		public static Map ShellMapPrepareAssets()
+		{
+			var uid = ChooseShellmap();
+			Console.WriteLine($"[init] Loading shell map: {uid}");
+
+			var preview = ModData.MapCache[uid];
+			if (preview.Status != MapStatus.Available)
+				throw new InvalidDataException($"Invalid shellmap uid: {uid}");
+
+			var map = preview.ToMap();
+
+			worldRenderer?.Dispose();
+			Cursor?.SetCursor(null);
+			BeforeGameStart();
+
+			using (new PerfTimer("PrepareMap"))
+				ModData.PrepareMap(map);
+
+			return map;
+		}
+
+		public static void ShellMapCreateWorld(Map map)
+		{
+			using (new PerfTimer("NewWorld"))
+			{
+				var margin = 0;
+				if (map.Grid.EnableDepthBuffer)
+					margin = map.Rules.TerrainInfo.TileSize.Height * map.Grid.MaximumTerrainHeight;
+
+				Renderer.SetDepthMargin(margin);
+				OrderManager.World = new World(map, ModData, OrderManager, WorldType.Shellmap);
+			}
+
+			OrderManager.World.GameOver += FinishBenchmark;
+		}
+
+		public static void ShellMapCreateRenderer()
+		{
+			worldRenderer = new WorldRenderer(ModData, OrderManager.World);
+			GC.Collect();
+		}
+
+		public static void ShellMapLoadComplete()
+		{
+			using (new PerfTimer("LoadComplete"))
+				OrderManager.World.LoadComplete(worldRenderer);
+			GC.Collect();
+		}
+
+		public static void ShellMapFinalize()
+		{
+			if (!OrderManager.GameStarted)
+			{
+				Ui.MouseFocusWidget = null;
+				Ui.KeyboardFocusWidget = null;
+
+				OrderManager.StartGame();
+				worldRenderer.RefreshPalette();
+				Cursor?.SetCursor(ChromeMetrics.Get<string>("DefaultCursor"));
+			}
+
+			if (!OperatingSystem.IsBrowser())
+				GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
+			GC.Collect();
+
+			OrderManager.World.PostLoadComplete(worldRenderer);
+			AfterGameStart();
+			HideTransitionOverlay?.Invoke();
+			OnShellmapLoaded();
+		}
+
+		public static void NotifyShellmapLoaded() => OnShellmapLoaded();
 
 		public static void SwitchToExternalMod(ExternalMod mod, string[] launchArguments = null, Action onFailed = null)
 		{
@@ -632,7 +880,7 @@ namespace OpenRA
 			{
 				Ui.LastTickTime.AdvanceTickTime(tick);
 				Sync.RunUnsynced(world, Ui.Tick);
-				Cursor.Tick();
+				Cursor?.Tick();
 			}
 
 			if (orderManager.LastTickTime.ShouldAdvance(tick))
@@ -682,10 +930,34 @@ namespace OpenRA
 				lastConnectionState = nc.ConnectionState;
 				ConnectionStateChanged(OrderManager, null, nc);
 			}
+			else if (OrderManager.Connection is not NetworkConnection && OrderManager.Connection is not EchoConnection
+				&& OrderManager.Connection.ConnectionState != lastConnectionState)
+			{
+				lastConnectionState = OrderManager.Connection.ConnectionState;
+				ConnectionStateChanged(OrderManager, null, null);
+			}
 
 			InnerLogicTick(OrderManager);
 			if (worldRenderer != null && OrderManager.World != worldRenderer.World)
 				InnerLogicTick(worldRenderer.World.OrderManager);
+
+			// Tick in-process server for WASM skirmish (after client tick).
+			// This processes the orders the client just sent and queues ACKs
+			// for the next tick's Receive(), keeping frames synchronized.
+			if (OperatingSystem.IsBrowser() && server != null)
+			{
+				try
+				{
+					server.TickInProcess();
+
+					// Drain outbound data from remote guest connections (browser-hosted MP)
+					TickRemoteConnections?.Invoke();
+				}
+				catch (Exception ex)
+				{
+					Log.Write("server", $"[InProcess] Tick error: {ex}");
+				}
+			}
 		}
 
 		public static void PerformDelayedActions()
@@ -964,6 +1236,22 @@ namespace OpenRA
 
 		public static ConnectionTarget CreateServer(ServerSettings settings)
 		{
+			if (OperatingSystem.IsBrowser())
+			{
+				// WASM: create an in-process server + room for browser-hosted MP
+				server = new Server.Server(settings, ModData, ServerType.Multiplayer);
+
+				// Accept the host as an in-process connection
+				var serverConn = server.AcceptInProcessConnection();
+				PendingInProcessConnection = new InProcessClientConnection(server, serverConn);
+
+				// Create a relay room so remote guests can connect
+				CreateRelayRoom?.Invoke();
+
+				// Return dummy target (in-process connection used instead)
+				return new ConnectionTarget(new[] { new DnsEndPoint("127.0.0.1", 0) });
+			}
+
 			var endpoints = new List<IPEndPoint>
 			{
 				new(IPAddress.IPv6Any, settings.ListenPort),
@@ -983,6 +1271,21 @@ namespace OpenRA
 				AdvertiseOnline = false,
 				AdvertiseOnLocalNetwork = !isSkirmish
 			};
+
+			if (OperatingSystem.IsBrowser())
+			{
+				// WASM: create an in-process server (no TCP, no threads)
+				server = new Server.Server(settings, ModData, isSkirmish ? ServerType.Skirmish : ServerType.Local);
+
+				// Accept in-process connection (validates client + runs lobby traits)
+				var serverConn = server.AcceptInProcessConnection();
+
+				// Store the client-side connection for JoinServer to pick up
+				PendingInProcessConnection = new InProcessClientConnection(server, serverConn);
+
+				// Return a dummy connection target (not used for in-process)
+				return new ConnectionTarget(new[] { new DnsEndPoint("127.0.0.1", 0) });
+			}
 
 			// Always connect to local games using the same loopback connection
 			// Exposing multiple endpoints introduces a race condition on the client's PlayerIndex (sometimes 0, sometimes 1)
