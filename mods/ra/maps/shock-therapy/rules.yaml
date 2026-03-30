@@ -6,16 +6,10 @@ World:
 		LossVideo: sovcemet.vqa
 		Briefing: briefing
 
-^CivInfantry:
-	MustBeDestroyed:
-
 SHOCKDROP:
 	ParatroopersPower:
 		DisplayBeacon: False
 		DropItems: SHOK, SHOK, SHOK, SHOK, SHOK
-
-HOSP:
-	MustBeDestroyed:
 
 LST.Reinforcement:
 	Inherits: LST
