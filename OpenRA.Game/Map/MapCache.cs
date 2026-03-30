@@ -14,6 +14,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenRA.FileSystem;
@@ -73,6 +74,10 @@ namespace OpenRA
 			this.manifest = manifest;
 			this.modFiles = modFiles;
 			sheetBuilder = new SheetBuilder(SheetType.BGRA, manifest.RendererConstants.MapPreviewSheetSize);
+
+			// Initialize empty previews cache so enumeration works before LoadMaps.
+			// On WASM, maps are loaded asynchronously after InitializeMod returns.
+			previews = new Cache<string, MapPreview>(uid => new MapPreview(null, uid, MapGridType.Rectangular, this));
 		}
 
 		public void UpdateMaps()
@@ -83,14 +88,79 @@ namespace OpenRA
 
 		public void LoadMaps(ModData modData)
 		{
-			// Utility mod that does not support maps
 			if (manifest.MapFolders.Count == 0)
 				return;
 
 			var gridType = modData.GetOrCreate<MapGrid>().Type;
 			previews = new Cache<string, MapPreview>(uid => new MapPreview(modData, uid, gridType, this));
+			SetupMapDirectories();
 
-			// Enumerate map directories
+			// WASM fast path: load from pre-computed cache
+			if (OperatingSystem.IsBrowser() && TryLoadFromMapCache(modData, gridType))
+			{
+				LastModifiedMap = null;
+				return;
+			}
+
+			var modDataRules = modData.GetRulesYaml();
+			var mapCount = 0;
+			var mapTotal = MapLocations.Sum(kv => kv.Key.Contents.Count());
+			Console.WriteLine($"[maps] {mapTotal} maps to load");
+			foreach (var kv in MapLocations)
+			{
+				foreach (var map in kv.Key.Contents)
+				{
+					Console.WriteLine($"[maps] {++mapCount}/{mapTotal}: {map}");
+					LoadMapInternal(map, kv.Key, kv.Value, null, gridType, modDataRules);
+				}
+			}
+
+			LastModifiedMap = null;
+		}
+
+		public async Task LoadMapsAsync(ModData modData, Func<int, int, Task> onProgress)
+		{
+			if (manifest.MapFolders.Count == 0)
+				return;
+
+			var gridType = modData.GetOrCreate<MapGrid>().Type;
+			previews = new Cache<string, MapPreview>(uid => new MapPreview(modData, uid, gridType, this));
+			SetupMapDirectories();
+
+			// WASM fast path: load from pre-computed cache
+			if (OperatingSystem.IsBrowser() && TryLoadFromMapCache(modData, gridType))
+			{
+				if (onProgress != null)
+					await onProgress(1, 1);
+				LastModifiedMap = null;
+				Console.WriteLine("[maps-async] Loaded from map-cache.json");
+				return;
+			}
+
+			var modDataRules = modData.GetRulesYaml();
+			var mapCount = 0;
+			var mapTotal = MapLocations.Sum(kv => kv.Key.Contents.Count());
+			Console.WriteLine($"[maps-async] {mapTotal} maps to load");
+			foreach (var kv in MapLocations)
+			{
+				foreach (var map in kv.Key.Contents)
+				{
+					mapCount++;
+					LoadMapInternal(map, kv.Key, kv.Value, null, gridType, modDataRules);
+					if (onProgress != null && mapCount % 10 == 0)
+						await onProgress(mapCount, mapTotal);
+				}
+			}
+
+			if (onProgress != null)
+				await onProgress(mapCount, mapTotal);
+
+			LastModifiedMap = null;
+			Console.WriteLine($"[maps-async] All {mapCount} maps loaded");
+		}
+
+		void SetupMapDirectories()
+		{
 			foreach (var kv in manifest.MapFolders)
 			{
 				var name = kv.Key;
@@ -104,8 +174,6 @@ namespace OpenRA
 
 				try
 				{
-					// HACK: If the path is inside the support directory then we may need to create it
-					// Assume that the path is a directory if there is not an existing file with the same name
 					var resolved = Platform.ResolvePath(name);
 					if (resolved.StartsWith(Platform.SupportDir, StringComparison.Ordinal) && !File.Exists(resolved))
 						Directory.CreateDirectory(resolved);
@@ -123,15 +191,71 @@ namespace OpenRA
 				mapLocations.Add(package, classification);
 				mapDirectoryTrackers.Add(new MapDirectoryTracker(package, classification));
 			}
+		}
 
-			// PERF: Load the mod YAML once outside the loop, and reuse it when resolving each maps custom YAML.
-			var modDataRules = modData.GetRulesYaml();
-			foreach (var kv in MapLocations)
-				foreach (var map in kv.Key.Contents)
-					LoadMapInternal(map, kv.Key, kv.Value, null, gridType, modDataRules);
+		/// <summary>
+		/// WASM fast path: loads map metadata from pre-computed map-cache.json.
+		/// Skips per-map file I/O, SHA1 UID computation, and YAML parsing.
+		/// Maps with custom rules will have their rules loaded lazily when needed.
+		/// </summary>
+		bool TryLoadFromMapCache(ModData modData, MapGridType gridType)
+		{
+			try
+			{
+				var cachePath = Path.Combine(Platform.EngineDir, "map-cache.json");
+				if (!File.Exists(cachePath))
+				{
+					Console.WriteLine("[maps-cache] map-cache.json not found, falling back to slow path");
+					return false;
+				}
 
-			// We only want to track maps in runtime, not at loadtime
-			LastModifiedMap = null;
+				Console.WriteLine("[maps-cache] Loading from map-cache.json...");
+				var json = File.ReadAllText(cachePath);
+				var doc = JsonDocument.Parse(json);
+				var root = doc.RootElement;
+
+				if (!root.TryGetProperty("maps", out var mapsObj))
+					return false;
+
+				// Build lookup: map path → (parent package, classification) from MapLocations
+				var pathToParent = new Dictionary<string, (IReadOnlyPackage, MapClassification)>();
+				foreach (var kv in MapLocations)
+				{
+					foreach (var mapName in kv.Key.Contents)
+						pathToParent[mapName] = (kv.Key, kv.Value);
+				}
+
+				// Filter to current mod's maps
+				var currentMod = modData.Manifest.Id;
+				var loadedCount = 0;
+
+				foreach (var prop in mapsObj.EnumerateObject())
+				{
+					var uid = prop.Name;
+					var entry = prop.Value;
+
+					// Only load maps for the current mod
+					if (entry.TryGetProperty("mod", out var modProp) && modProp.GetString() != currentMod)
+						continue;
+
+					var mapPath = entry.GetProperty("path").GetString();
+					if (!pathToParent.TryGetValue(mapPath, out var parentInfo))
+						continue;
+
+					var preview = previews[uid];
+					preview.UpdateFromCache(entry, parentInfo.Item1, parentInfo.Item2, gridType);
+					loadedCount++;
+				}
+
+				Console.WriteLine($"[maps-cache] Loaded {loadedCount} maps from cache");
+				doc.Dispose();
+				return loadedCount > 0;
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine($"[maps-cache] Failed to load map cache: {e.Message}");
+				return false;
+			}
 		}
 
 		public void LoadMap(string map, IReadOnlyPackage package, MapClassification classification, string oldMap)
@@ -147,11 +271,15 @@ namespace OpenRA
 			{
 				using (new PerfTimer(map))
 				{
+					Console.WriteLine($"[map-load] Opening package for: {map}");
 					mapPackage = package.OpenPackage(map, modFiles);
 					if (mapPackage != null)
 					{
+						Console.WriteLine($"[map-load] Computing UID for: {map}");
 						var uid = Map.ComputeUID(mapPackage);
+						Console.WriteLine($"[map-load] UID={uid}, updating preview for: {map}");
 						previews[uid].UpdateFromMapWithoutOwningPackage(mapPackage, package, classification, gridType, modDataRules);
+						Console.WriteLine($"[map-load] Done: {map}");
 						mapPackage.Dispose();
 
 						if (oldMap != uid)
@@ -161,6 +289,8 @@ namespace OpenRA
 								mapUpdates[oldMap] = uid;
 						}
 					}
+					else
+						Console.WriteLine($"[map-load] Package null for: {map}");
 				}
 			}
 			catch (Exception e)
@@ -363,6 +493,12 @@ namespace OpenRA
 			if (launchPreviewLoaderThread)
 				Game.RunAfterTick(() =>
 				{
+					if (OperatingSystem.IsBrowser())
+					{
+						ProcessMinimapBatchWasm();
+						return;
+					}
+
 					// Wait for any existing thread to exit before starting a new one.
 					previewLoaderThread?.Join();
 
@@ -373,6 +509,58 @@ namespace OpenRA
 					};
 					previewLoaderThread.Start();
 				});
+		}
+
+		void ProcessMinimapBatchWasm()
+		{
+			// WASM: process minimaps in small batches to avoid freezing the UI.
+			const int batchSize = 5;
+			List<MapPreview> todo;
+			lock (syncRoot)
+			{
+				todo = generateMinimap.Where(p => p.GetMinimap() == null).ToList();
+				generateMinimap.Clear();
+			}
+
+			var processed = 0;
+			foreach (var p in todo)
+			{
+				if (p.Preview != null)
+				{
+					try
+					{
+						p.SetMinimap(sheetBuilder.Add(p.Preview));
+					}
+					catch (Exception e)
+					{
+						Log.Write("debug", "Failed to load minimap with exception:");
+						Log.Write("debug", e);
+					}
+				}
+
+				if (++processed >= batchSize)
+					break;
+			}
+
+			if (sheetBuilder.Current != null)
+				sheetBuilder.Current.ReleaseBuffer();
+
+			// If there are remaining items, re-queue and schedule next batch
+			if (processed < todo.Count)
+			{
+				lock (syncRoot)
+				{
+					for (var i = processed; i < todo.Count; i++)
+						generateMinimap.Enqueue(todo[i]);
+				}
+
+				Game.RunAfterTick(ProcessMinimapBatchWasm);
+			}
+			else
+			{
+				lock (syncRoot)
+					previewLoaderThreadShutDown = true;
+			}
 		}
 
 		bool IsSuitableInitialMap(MapPreview map)

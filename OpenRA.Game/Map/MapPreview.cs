@@ -17,6 +17,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenRA.FileFormats;
@@ -119,6 +120,9 @@ namespace OpenRA
 
 			public void SetCustomRules(ModData modData, IReadOnlyFileSystem fileSystem, Dictionary<string, MiniYaml> yaml, MiniYamlNode[][] modDataRules)
 			{
+				if (OperatingSystem.IsBrowser())
+					Console.WriteLine($"[map-rules] SetCustomRules start for: {Title}");
+
 				RuleDefinitions = LoadRuleSection(yaml, "Rules");
 				WeaponDefinitions = LoadRuleSection(yaml, "Weapons");
 				VoiceDefinitions = LoadRuleSection(yaml, "Voices");
@@ -127,6 +131,9 @@ namespace OpenRA
 				SequenceDefinitions = LoadRuleSection(yaml, "Sequences");
 				ModelSequenceDefinitions = LoadRuleSection(yaml, "ModelSequences");
 				FluentMessageDefinitions = LoadRuleSection(yaml, "FluentMessages");
+
+				if (OperatingSystem.IsBrowser())
+					Console.WriteLine($"[map-rules] Sections loaded, RuleDefs={RuleDefinitions != null}");
 
 				try
 				{
@@ -189,8 +196,14 @@ namespace OpenRA
 					Log.Write("debug", e);
 				}
 
+				if (OperatingSystem.IsBrowser())
+					Console.WriteLine("[map-rules] Falling through to DefaultRules");
 				WorldActorInfo = modData.DefaultRules.Actors[SystemActors.World];
+				if (OperatingSystem.IsBrowser())
+					Console.WriteLine("[map-rules] Got WorldActorInfo");
 				PlayerActorInfo = modData.DefaultRules.Actors[SystemActors.Player];
+				if (OperatingSystem.IsBrowser())
+					Console.WriteLine("[map-rules] Done");
 			}
 
 			public InnerData Clone()
@@ -460,6 +473,116 @@ namespace OpenRA
 			// Assign the new data atomically
 			// Local maps have higher precedence than remote/generated maps,
 			// so should always replace their metadata
+			lock (syncRoot)
+				innerData = newData;
+		}
+
+		/// <summary>
+		/// Populates map metadata from a pre-computed JSON cache entry,
+		/// bypassing YAML parsing and UID computation (WASM fast path).
+		/// Maps with custom rules will have null RuleDefinitions and
+		/// should be re-loaded from the full map package when needed.
+		/// </summary>
+		public void UpdateFromCache(JsonElement entry, IReadOnlyPackage parent, MapClassification classification,
+			MapGridType gridType)
+		{
+			var newData = innerData.Clone();
+			newData.Class = classification;
+			newData.GridType = gridType;
+			newData.MapFormat = entry.GetProperty("format").GetInt32();
+			newData.Title = entry.GetProperty("title").GetString();
+			newData.Author = entry.GetProperty("author").GetString();
+			newData.TileSet = entry.GetProperty("tileset").GetString();
+
+			var categoriesStr = entry.GetProperty("categories").GetString();
+			newData.Categories = string.IsNullOrEmpty(categoriesStr) ? [] :
+				categoriesStr.Split(',').Select(s => s.Trim()).ToImmutableArray();
+
+			var boundsStr = entry.GetProperty("bounds").GetString();
+			var bp = boundsStr.Split(',');
+			if (bp.Length == 4)
+				newData.Bounds = new Rectangle(int.Parse(bp[0]), int.Parse(bp[1]), int.Parse(bp[2]), int.Parse(bp[3]));
+
+			var visStr = entry.GetProperty("visibility").GetString();
+			if (Enum.TryParse<MapVisibility>(visStr, out var vis))
+				newData.Visibility = vis;
+
+			var requiresMod = entry.TryGetProperty("requiresMod", out var rm) ? rm.GetString() : "";
+			newData.Status = modData.Manifest.MapCompatibility.Contains(requiresMod) ?
+				MapStatus.Available : MapStatus.Unavailable;
+
+			newData.PlayerCount = entry.GetProperty("playerCount").GetInt32();
+
+			// Parse spawn points
+			var spawns = new List<CPos>();
+			if (entry.TryGetProperty("spawnPoints", out var sp))
+			{
+				foreach (var s in sp.EnumerateArray())
+				{
+					var parts = s.GetString().Split(',');
+					if (parts.Length == 2)
+						spawns.Add(new CPos(int.Parse(parts[0]), int.Parse(parts[1])));
+				}
+			}
+
+			newData.SpawnPoints = spawns.ToImmutableArray();
+
+			// Parse players
+			if (entry.TryGetProperty("players", out var playersArr))
+			{
+				var playerRefs = new Dictionary<string, PlayerReference>();
+				foreach (var pEntry in playersArr.EnumerateArray())
+				{
+					var pr = new PlayerReference();
+					if (pEntry.TryGetProperty("Name", out var n)) pr.Name = n.GetString();
+					if (pEntry.TryGetProperty("Faction", out var f)) pr.Faction = f.GetString();
+					if (pEntry.TryGetProperty("Playable", out var pl) && pl.GetBoolean()) pr.Playable = true;
+					if (pEntry.TryGetProperty("OwnsWorld", out var ow) && ow.GetBoolean()) pr.OwnsWorld = true;
+					if (pEntry.TryGetProperty("NonCombatant", out var nc) && nc.GetBoolean()) pr.NonCombatant = true;
+					if (pEntry.TryGetProperty("Required", out var rq) && rq.GetBoolean()) pr.Required = true;
+					if (pEntry.TryGetProperty("Spectating", out var sp2) && sp2.GetBoolean()) pr.Spectating = true;
+					if (pEntry.TryGetProperty("AllowBots", out var ab))
+					{
+						if (ab.ValueKind == JsonValueKind.False) pr.AllowBots = false;
+					}
+
+					if (pEntry.TryGetProperty("LockFaction", out var lf) && lf.GetBoolean()) pr.LockFaction = true;
+					if (pEntry.TryGetProperty("LockColor", out var lc) && lc.GetBoolean()) pr.LockColor = true;
+					if (pEntry.TryGetProperty("LockSpawn", out var ls) && ls.GetBoolean()) pr.LockSpawn = true;
+					if (pEntry.TryGetProperty("LockTeam", out var lt) && lt.GetBoolean()) pr.LockTeam = true;
+					if (pEntry.TryGetProperty("LockHandicap", out var lh) && lh.GetBoolean()) pr.LockHandicap = true;
+
+					if (pEntry.TryGetProperty("Enemies", out var en) && en.GetString() is string enemies && !string.IsNullOrEmpty(enemies))
+						pr.Enemies = enemies.Split(',').Select(s => s.Trim()).ToImmutableArray();
+					if (pEntry.TryGetProperty("Allies", out var al) && al.GetString() is string allies && !string.IsNullOrEmpty(allies))
+						pr.Allies = allies.Split(',').Select(s => s.Trim()).ToImmutableArray();
+
+					if (pEntry.TryGetProperty("Team", out var tm))
+						pr.Team = tm.ValueKind == JsonValueKind.Number ? tm.GetInt32() : int.Parse(tm.GetString());
+					if (pEntry.TryGetProperty("Spawn", out var spn))
+						pr.Spawn = spn.ValueKind == JsonValueKind.Number ? spn.GetInt32() : int.Parse(spn.GetString());
+					if (pEntry.TryGetProperty("Handicap", out var hc))
+						pr.Handicap = hc.ValueKind == JsonValueKind.Number ? hc.GetInt32() : int.Parse(hc.GetString());
+
+					if (pr.Name != null)
+						playerRefs[pr.Name] = pr;
+				}
+
+				newData.Players = new MapPlayers();
+				foreach (var kv in playerRefs)
+					newData.Players.Players[kv.Key] = kv.Value;
+			}
+
+			// Always initialize default rules so PlayerActorInfo is available in the lobby.
+			// Maps with custom rules will get a full reload when actually played.
+			newData.SetCustomRules(modData, this, new Dictionary<string, MiniYaml>(), null);
+
+			newData.ModifiedDate = DateTime.Now;
+
+			Path = entry.GetProperty("path").GetString();
+			parentPackage = parent;
+			package = null;
+
 			lock (syncRoot)
 				innerData = newData;
 		}
