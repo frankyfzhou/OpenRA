@@ -98,6 +98,10 @@ namespace OpenRA.Mods.Common.Traits
 			if (client.SpawnPoint > 0 && client.SpawnPoint <= state.SpawnLocations.Length)
 				return client.SpawnPoint;
 
+			// Campaign maps may have no spawn points (spawning is handled by Lua scripts)
+			if (state.AvailableSpawnPoints.Count == 0)
+				return 0;
+
 			var spawnPoint = state.OccupiedSpawnPoints.Count == 0 || !separateTeamSpawns
 				? state.AvailableSpawnPoints.Random(playerRandom)
 				: state.AvailableSpawnPoints // pick the most distant spawnpoint from everyone else

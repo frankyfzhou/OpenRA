@@ -955,6 +955,7 @@ namespace OpenRA
 				}
 				catch (Exception ex)
 				{
+					Console.Error.WriteLine($"[InProcess] Tick error: {ex}");
 					Log.Write("server", $"[InProcess] Tick error: {ex}");
 				}
 			}
