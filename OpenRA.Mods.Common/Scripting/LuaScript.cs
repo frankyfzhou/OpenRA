@@ -42,9 +42,10 @@ namespace OpenRA.Mods.Common.Scripting
 
 		void IWorldLoaded.WorldLoaded(World world, WorldRenderer worldRenderer)
 		{
-			// Native Lua (lua51) is not available on WASM — skip scripting.
-			// Shell maps will render as static backgrounds without Lua animations.
-			if (OperatingSystem.IsBrowser())
+			// Shell map Lua spawns continuous unit waves that accumulate dead actors,
+			// overwhelming WASM's single-threaded rendering. Skip on browser shell maps;
+			// campaign/skirmish maps still get full Lua support via MoonSharp.
+			if (OperatingSystem.IsBrowser() && world.Type == WorldType.Shellmap)
 				return;
 
 			var scripts = info.Scripts ?? Enumerable.Empty<string>();

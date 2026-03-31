@@ -208,11 +208,19 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			}
 
 			// Preload map preview to reduce jank
-			new Thread(() =>
+			if (OperatingSystem.IsBrowser())
 			{
 				foreach (var p in allPreviews)
 					p.GetMinimap();
-			}).Start();
+			}
+			else
+			{
+				new Thread(() =>
+				{
+					foreach (var p in allPreviews)
+						p.GetMinimap();
+				}).Start();
+			}
 
 			var startButton = widget.Get<ButtonWidget>("STARTGAME_BUTTON");
 			startButton.OnClick = () => StartMissionClicked(onExit);
@@ -288,7 +296,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			var infoVideo = "";
 			var infoVideoVisible = false;
 
-			new Thread(() =>
+			Action loadMissionData = () =>
 			{
 				var missionData = preview.WorldActorInfo.TraitInfoOrDefault<MissionDataInfo>();
 				if (missionData != null)
@@ -313,7 +321,12 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 						}
 					});
 				}
-			}).Start();
+			};
+
+			if (OperatingSystem.IsBrowser())
+				loadMissionData();
+			else
+				new Thread(() => loadMissionData()).Start();
 
 			startBriefingVideoButton.IsVisible = () => briefingVideoVisible && playingVideo != PlayingVideo.Briefing;
 			startBriefingVideoButton.OnClick = () => PlayVideo(videoPlayer, briefingVideo, PlayingVideo.Briefing);
