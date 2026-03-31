@@ -7,6 +7,8 @@ Metadata:
 
 PackageFormats: Mix
 
+SupportsMapsFrom: ra
+
 FileSystem: ContentInstallerFileSystem
 	SystemPackages:
 		^EngineDir
@@ -23,6 +25,7 @@ FileSystem: ContentInstallerFileSystem
 		content|interior.mix
 		content|lores.mix: lores
 		content|hires.mix
+		content|local.mix
 		content|russian.mix
 		content|snow.mix
 		content|sounds.mix

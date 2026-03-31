@@ -225,8 +225,8 @@ namespace OpenRA
 						pathToParent[mapName] = (kv.Key, kv.Value);
 				}
 
-				// Filter to current mod's maps
-				var currentMod = modData.Manifest.Id;
+				// Filter to current mod's maps (respects SupportsMapsFrom)
+				var compatibleMods = modData.Manifest.MapCompatibility;
 				var loadedCount = 0;
 
 				foreach (var prop in mapsObj.EnumerateObject())
@@ -234,8 +234,8 @@ namespace OpenRA
 					var uid = prop.Name;
 					var entry = prop.Value;
 
-					// Only load maps for the current mod
-					if (entry.TryGetProperty("mod", out var modProp) && modProp.GetString() != currentMod)
+					// Only load maps compatible with the current mod
+					if (entry.TryGetProperty("mod", out var modProp) && !compatibleMods.Contains(modProp.GetString()))
 						continue;
 
 					var mapPath = entry.GetProperty("path").GetString();
