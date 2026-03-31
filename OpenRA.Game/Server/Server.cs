@@ -649,7 +649,7 @@ namespace OpenRA.Server
 					return;
 				}
 
-				var ipAddress = ((IPEndPoint)newConn.EndPoint).Address;
+				var ipAddress = newConn.EndPoint is IPEndPoint ep ? ep.Address : IPAddress.Loopback;
 				var client = new Session.Client
 				{
 					Name = OpenRA.Settings.SanitizedPlayerName(handshake.Client.Name),

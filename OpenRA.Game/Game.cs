@@ -1238,6 +1238,9 @@ namespace OpenRA
 		{
 			if (OperatingSystem.IsBrowser())
 			{
+				// WASM: master server is unreachable from browser (CORS), disable to prevent error spam
+				settings.AdvertiseOnline = false;
+
 				// WASM: create an in-process server + room for browser-hosted MP
 				server = new Server.Server(settings, ModData, ServerType.Multiplayer);
 
