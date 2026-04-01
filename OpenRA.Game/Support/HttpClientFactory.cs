@@ -21,8 +21,19 @@ namespace OpenRA.Support
 
 		static readonly Lazy<HttpMessageHandler> Handler = new(GetHandler);
 
+		/// <summary>
+		/// Base URL of the relay HTTP proxy (e.g. "http://localhost:9090").
+		/// Set during WASM init to enable CORS-proxied requests to master.openra.net.
+		/// </summary>
+		public static string WebRelayHttpBase { get; set; }
+
 		public static HttpClient Create()
 		{
+			// SocketsHttpHandler is not supported in browser WASM.
+			// Plain HttpClient uses BrowserHttpHandler which delegates to browser fetch().
+			if (OperatingSystem.IsBrowser())
+				return new HttpClient();
+
 			return new HttpClient(Handler.Value, false);
 		}
 

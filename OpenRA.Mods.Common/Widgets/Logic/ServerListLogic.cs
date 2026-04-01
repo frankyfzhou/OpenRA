@@ -441,7 +441,13 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 
 			searchStatus = SearchStatus.Fetching;
 
-			var queryURL = new HttpQueryBuilder(services.ServerList)
+			// In WASM, route through the relay CORS proxy instead of hitting
+			// master.openra.net directly (which would be blocked by CORS).
+			var serverListBase = services.ServerList;
+			if (OperatingSystem.IsBrowser() && !string.IsNullOrEmpty(HttpClientFactory.WebRelayHttpBase))
+				serverListBase = HttpClientFactory.WebRelayHttpBase + "/api/servers";
+
+			var queryURL = new HttpQueryBuilder(serverListBase)
 			{
 				{ "protocol", GameServer.ProtocolVersion },
 				{ "engine", Game.EngineVersion },
