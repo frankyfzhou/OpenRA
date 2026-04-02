@@ -440,6 +440,13 @@ namespace OpenRA.Server
 				}
 			};
 
+			// Record replays for headless bot games
+			if (Game.HeadlessBotMode)
+			{
+				recorder = new ReplayRecorder(() => Game.TimestampedFilename(extra: "-Server"));
+				RecordFakeHandshake();
+			}
+
 			// Run server startup traits synchronously (sets map, lobby state)
 			foreach (var t in serverTraits.WithInterface<INotifyServerStart>())
 				t.ServerStarted(this);

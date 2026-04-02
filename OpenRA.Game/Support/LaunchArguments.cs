@@ -31,6 +31,9 @@ namespace OpenRA
 		[Desc("Automatically start playing the given map.")]
 		public string Map;
 
+		[Desc("Comma-separated bot types for auto-start bot game (e.g. rush,normal). Requires Launch.Map.")]
+		public string Bots;
+
 		public LaunchArguments(Arguments args)
 		{
 			if (args == null)

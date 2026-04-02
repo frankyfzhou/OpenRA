@@ -1,27 +1,185 @@
 Player:
-	ModularBot@bot-test-ai:
-		Name: bot-test-ai.name
-		Type: test
-	GrantConditionOnBotOwner@test:
-		Condition: enable-test-ai
-		Bots: test
-	HarvesterBotModule:
-		RequiresCondition: enable-test-ai
+	ModularBot@RushAI:
+		Name: Rush AI
+		Type: rush
+	ModularBot@NormalAI:
+		Name: Normal AI
+		Type: normal
+	ModularBot@TurtleAI:
+		Name: Turtle AI
+		Type: turtle
+	ModularBot@AirAI:
+		Name: Air AI
+		Type: air
+	GrantConditionOnBotOwner@rush:
+		Condition: enable-rush-ai
+		Bots: rush
+	GrantConditionOnBotOwner@normal:
+		Condition: enable-normal-ai
+		Bots: normal
+	GrantConditionOnBotOwner@turtle:
+		Condition: enable-turtle-ai
+		Bots: turtle
+	GrantConditionOnBotOwner@air:
+		Condition: enable-air-ai
+		Bots: air
+	HarvesterBotModule@rush-air:
+		RequiresCondition: enable-rush-ai || enable-air-ai
 		HarvesterTypes: harv
 		RefineryTypes: proc
+		InitialHarvesters: 2
+	HarvesterBotModule@normal-turtle:
+		RequiresCondition: enable-normal-ai || enable-turtle-ai
+		HarvesterTypes: harv
+		RefineryTypes: proc
+		InitialHarvesters: 4
 	PowerDownBotModule:
-		RequiresCondition: enable-test-ai
-		PowerDownTypes: garadr, naradr, gavulc,garock,gacsam,gactwr,naobel,nalasr,nasam
+		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-air-ai
+		PowerDownTypes: garadr, naradr, gavulc, garock, gacsam, gactwr, naobel, nalasr, nasam
 	ResourceMapBotModule:
-		RequiresCondition: enable-test-ai
+		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-air-ai
 		ResourceCreatorTypes: tibtre01, tibtre02, tibtre03, bigblue, bigblue3
 		ValuableResourceTypes: Tiberium, BlueTiberium
 		HarvesterTypes: harv
 		RefineryTypes: proc
-		EnemyBaseBuildingTypes: gacnst, gapowr, gapowrup, napowr, naapwr, gapile, nahand, gaweap, naweap,garadr, naradr, gahpad, nahpad, gatech, natech, gavulc,garock,gacsam,gactwr,naobel,nalasr,nasam
-	BaseBuilderBotModule@test:
-		RequiresCondition: enable-test-ai
-		MinimumExcessPower: 30
+		EnemyBaseBuildingTypes: gacnst, gapowr, gapowrup, napowr, naapwr, gapile, nahand, gaweap, naweap, garadr, naradr, gahpad, nahpad, gatech, natech, gavulc, garock, gacsam, gactwr, naobel, nalasr, nasam
+	SupportPowerBotModule:
+		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-air-ai
+		Decisions:
+			ioncannon:
+				OrderName: IonCannonPowerOrder
+				MinimumAttractiveness: 3000
+				Consideration@1:
+					Against: Enemy
+					Types: Structure
+					Attractiveness: 1
+					TargetMetric: Value
+					CheckRadius: 5c0
+				Consideration@2:
+					Against: Ally
+					Types: Air, Ground, Water
+					Attractiveness: -10
+					TargetMetric: Value
+					CheckRadius: 7c0
+			nuke:
+				OrderName: NukePowerOrder
+				MinimumAttractiveness: 3000
+				Consideration@1:
+					Against: Enemy
+					Types: Structure
+					Attractiveness: 1
+					TargetMetric: Value
+					CheckRadius: 5c0
+				Consideration@2:
+					Against: Ally
+					Types: Air, Ground, Water
+					Attractiveness: -10
+					TargetMetric: Value
+					CheckRadius: 7c0
+	BuildingRepairBotModule:
+		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-air-ai
+	McvManagerBotModule:
+		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-air-ai
+		McvTypes: mcv
+		ConstructionYardTypes: gacnst
+		McvFactoryTypes: gaweap, naweap
+	CaptureManagerBotModule:
+		RequiresCondition: enable-normal-ai || enable-turtle-ai
+		CapturingActorTypes: ghost, mhijack
+		CapturableActorTypes: gapowr, gapowrup, napowr, naapwr, proc, garadr, naradr, gatech, natech
+
+	# ── Rush AI: fast aggression, tanks + infantry, low defenses ──
+	BaseBuilderBotModule@rush:
+		RequiresCondition: enable-rush-ai
+		MinimumExcessPower: 0
+		MaximumExcessPower: 150
+		ExcessPowerIncrement: 40
+		ExcessPowerIncreaseThreshold: 4
+		ConstructionYardTypes: gacnst
+		RefineryTypes: proc
+		PowerTypes: gapowr, gapowrup, napowr, naapwr
+		ProductionTypes: gapile, nahand, gaweap, naweap
+		TechTypes: garadr, naradr, gatech, natech
+		SiloTypes: gasilo
+		DefenseTypes: gavulc, garock, gacsam, gactwr, naobel, nalasr, nasam
+		BuildingLimits:
+			proc: 3
+			gapile: 1
+			nahand: 1
+			gaweap: 2
+			naweap: 2
+			garadr: 1
+			naradr: 1
+			gatech: 1
+			natech: 1
+			gahpad: 1
+			nahpad: 1
+			gavulc: 3
+			garock: 1
+			gactwr: 4
+			nalasr: 3
+			naobel: 1
+		BuildingFractions:
+			proc: 25
+			gapile: 3
+			nahand: 3
+			gaweap: 5
+			naweap: 5
+			garadr: 1
+			naradr: 1
+			gatech: 1
+			natech: 1
+			gavulc: 4
+			gactwr: 6
+			nalasr: 4
+			naobel: 2
+		BuildingDelays:
+			garadr: 5000
+			naradr: 5000
+			gatech: 10000
+			natech: 10000
+	SquadManagerBotModule@rush:
+		RequiresCondition: enable-rush-ai
+		SquadSize: 15
+		ExcludeFromSquadsTypes: harv, mcv, dpod, hunter, repair, medic
+		ConstructionYardTypes: gacnst
+		AirUnitsTypes: orca, orcab, scrin, apache, jumpjet
+		ProtectionTypes: gacnst, proc, gasilo, gapowr, gapowrup, napowr, naapwr, gapile, nahand, gaweap, naweap, garadr, naradr, gahpad, nahpad, gatech, natech, gavulc, garock, gacsam, gactwr, naobel, nalasr, nasam, mcv, harv
+		IgnoredEnemyTargetTypes: Air
+	UnitBuilderBotModule@rush:
+		RequiresCondition: enable-rush-ai
+		UnitQueues: Vehicle, Infantry, Air
+		UnitsToBuild:
+			e1: 70
+			e2: 30
+			e3: 30
+			cyborg: 20
+			jumpjet: 10
+			harv: 8
+			mmch: 25
+			smech: 35
+			bggy: 30
+			bike: 25
+			ttnk: 20
+			apc: 15
+			orca: 5
+			apache: 5
+		UnitLimits:
+			harv: 6
+			medic: 1
+			repair: 1
+	McvExpansionManagerBotModule@rush:
+		RequiresCondition: enable-rush-ai
+		McvTypes: mcv
+		ConstructionYardTypes: gacnst
+		McvFactoryTypes: gaweap, naweap
+		MoveOldConyardFirst: true
+		MinimumConstructionYardCount: 2
+
+	# ── Normal AI: balanced play, all unit types, moderate defenses ──
+	BaseBuilderBotModule@normal:
+		RequiresCondition: enable-normal-ai
+		MinimumExcessPower: 20
 		MaximumExcessPower: 200
 		ExcessPowerIncrement: 30
 		ExcessPowerIncreaseThreshold: 4
@@ -29,94 +187,290 @@ Player:
 		RefineryTypes: proc
 		PowerTypes: gapowr, gapowrup, napowr, naapwr
 		ProductionTypes: gapile, nahand, gaweap, naweap, gahpad, nahpad
-		TechTypes: garadr, naradr, gahpad, nahpad, gatech, natech
+		TechTypes: garadr, naradr, gatech, natech
 		SiloTypes: gasilo
-		DefenseTypes: gavulc,garock,gacsam,gactwr,naobel,nalasr,nasam
-		SellRefineryNoResourceDistance: 18
+		DefenseTypes: gavulc, garock, gacsam, gactwr, naobel, nalasr, nasam
 		BuildingLimits:
 			proc: 4
 			gasilo: 2
-			gapowr: 8
-			napowr: 8
 			gapile: 1
 			nahand: 1
-			gaweap: 1
-			naweap: 1
+			gaweap: 2
+			naweap: 2
 			garadr: 1
 			naradr: 1
 			gatech: 1
 			natech: 1
-			nastlh: 1
 			gahpad: 3
 			nahpad: 3
-			gavulc: 8
+			gavulc: 6
 			garock: 2
-			gacsam: 4
-			gactwr: 14
+			gacsam: 3
+			gactwr: 10
 			naobel: 2
-			nalasr: 8
-			nasam: 4
+			nalasr: 6
+			nasam: 3
 		BuildingFractions:
-			proc: 30
-			gapile: 1
-			nahand: 1
-			gaweap: 1
-			naweap: 1
+			proc: 25
+			gapile: 2
+			nahand: 2
+			gaweap: 3
+			naweap: 3
 			garadr: 1
 			naradr: 1
 			gatech: 1
 			natech: 1
-			nastlh: 1
-			gahpad: 1
-			nahpad: 1
-			nalasr: 10
-			gavulc: 10
+			gahpad: 2
+			nahpad: 2
+			gavulc: 8
 			garock: 3
-			gacsam: 6
-			gactwr: 18
-			nasam: 6
+			gacsam: 5
+			gactwr: 12
+			nalasr: 8
+			nasam: 5
 			naobel: 3
-	BuildingRepairBotModule:
-		RequiresCondition: enable-test-ai
-	SquadManagerBotModule@test:
-		RequiresCondition: enable-test-ai
-		SquadSize: 20
-		ExcludeFromSquadsTypes: harv, mcv, dpod, hunter
+		BuildingDelays:
+			garadr: 4000
+			naradr: 4000
+			gatech: 8000
+			natech: 8000
+	SquadManagerBotModule@normal:
+		RequiresCondition: enable-normal-ai
+		SquadSize: 25
+		ExcludeFromSquadsTypes: harv, mcv, dpod, hunter, repair, medic
 		ConstructionYardTypes: gacnst
 		AirUnitsTypes: orca, orcab, scrin, apache, jumpjet
-		ProtectionTypes: gapowr, gapile, gaweap, gahpad, gadept, garadr, gatech, gaplug, gagate_a, gagate_b, gactwr, napowr, naapwr, nahand, naweap, nahpad, naradr, natech, nastlh, natmpl, namisl, nawast, nagate_a, nagate_b, nalasr, naobel, nasam, weed, gacnst, proc, gasilo, napuls, mcv, harv
+		ProtectionTypes: gacnst, proc, gasilo, gapowr, gapowrup, napowr, naapwr, gapile, nahand, gaweap, naweap, garadr, naradr, gahpad, nahpad, gatech, natech, gavulc, garock, gacsam, gactwr, naobel, nalasr, nasam, mcv, harv
 		IgnoredEnemyTargetTypes: Air
-	UnitBuilderBotModule@test:
-		RequiresCondition: enable-test-ai
+		ProtectUnitScanRadius: 15
+		ProtectionScanRadius: 12
+	UnitBuilderBotModule@normal:
+		RequiresCondition: enable-normal-ai
 		UnitQueues: Vehicle, Infantry, Air
 		UnitsToBuild:
-			e1: 80
+			e1: 60
 			e2: 25
 			e3: 25
 			cyborg: 15
 			jumpjet: 15
-			repair: 2
-			medic: 2
+			medic: 3
+			repair: 3
+			harv: 12
+			mmch: 20
+			ttnk: 20
+			smech: 20
+			bggy: 15
+			hvr: 15
+			bike: 15
+			subtank: 8
+			sonic: 8
+			stnk: 6
+			apc: 10
+			orca: 8
+			orcab: 5
+			apache: 8
+			scrin: 5
+		UnitLimits:
 			harv: 10
-			mmch: 15
-			ttnk: 15
-			smech: 25
-			bggy: 25
-			hvr: 20
-			bike: 20
+			medic: 3
+			repair: 3
+	McvExpansionManagerBotModule@normal:
+		RequiresCondition: enable-normal-ai
+		McvTypes: mcv
+		ConstructionYardTypes: gacnst
+		McvFactoryTypes: gaweap, naweap
+		MinimumConstructionYardCount: 2
+
+	# ── Turtle AI: heavy defenses, slow expansion, large squads ──
+	BaseBuilderBotModule@turtle:
+		RequiresCondition: enable-turtle-ai
+		MinimumExcessPower: 30
+		MaximumExcessPower: 300
+		ExcessPowerIncrement: 20
+		ExcessPowerIncreaseThreshold: 2
+		ConstructionYardTypes: gacnst
+		RefineryTypes: proc
+		PowerTypes: gapowr, gapowrup, napowr, naapwr
+		ProductionTypes: gapile, nahand, gaweap, naweap, gahpad, nahpad
+		TechTypes: garadr, naradr, gatech, natech
+		SiloTypes: gasilo
+		DefenseTypes: gavulc, garock, gacsam, gactwr, naobel, nalasr, nasam
+		BuildingLimits:
+			proc: 5
+			gasilo: 3
+			gapile: 1
+			nahand: 1
+			gaweap: 1
+			naweap: 1
+			garadr: 1
+			naradr: 1
+			gatech: 1
+			natech: 1
+			gahpad: 2
+			nahpad: 2
+			gavulc: 10
+			garock: 4
+			gacsam: 6
+			gactwr: 18
+			naobel: 4
+			nalasr: 10
+			nasam: 6
+		BuildingFractions:
+			proc: 20
+			gapile: 1
+			nahand: 1
+			gaweap: 2
+			naweap: 2
+			garadr: 1
+			naradr: 1
+			gatech: 1
+			natech: 1
+			gahpad: 1
+			nahpad: 1
+			gavulc: 14
+			garock: 5
+			gacsam: 8
+			gactwr: 22
+			nalasr: 14
+			nasam: 8
+			naobel: 5
+		BuildingDelays:
+			garadr: 3000
+			naradr: 3000
+			gatech: 6000
+			natech: 6000
+	SquadManagerBotModule@turtle:
+		RequiresCondition: enable-turtle-ai
+		SquadSize: 10
+		ExcludeFromSquadsTypes: harv, mcv, dpod, hunter, repair, medic
+		ConstructionYardTypes: gacnst
+		AirUnitsTypes: orca, orcab, scrin, apache, jumpjet
+		ProtectionTypes: gacnst, proc, gasilo, gapowr, gapowrup, napowr, naapwr, gapile, nahand, gaweap, naweap, garadr, naradr, gahpad, nahpad, gatech, natech, gavulc, garock, gacsam, gactwr, naobel, nalasr, nasam, mcv, harv
+		IgnoredEnemyTargetTypes: Air
+		RushInterval: 100000
+		MinimumAttackForceDelay: 100000
+		ProtectUnitScanRadius: 30
+		ProtectionScanRadius: 15
+	UnitBuilderBotModule@turtle:
+		RequiresCondition: enable-turtle-ai
+		UnitQueues: Vehicle, Infantry, Air
+		UnitsToBuild:
+			e1: 50
+			e2: 20
+			e3: 20
+			cyborg: 15
+			cyc2: 10
+			jumpjet: 15
+			medic: 5
+			repair: 5
+			harv: 15
+			mmch: 20
+			ttnk: 20
+			smech: 20
+			hvr: 15
+			sonic: 12
 			subtank: 10
-			sonic: 10
-			stnk: 8
-			orca: 5
+			stnk: 10
+			jugg: 8
+			art2: 8
+			orca: 6
 			orcab: 4
-			apache: 5
+			apache: 6
 			scrin: 4
 		UnitLimits:
 			harv: 12
-			medic: 3
-			repair: 3
-	McvExpansionManagerBotModule@test:
-		RequiresCondition: enable-test-ai
+			medic: 4
+			repair: 4
+	McvExpansionManagerBotModule@turtle:
+		RequiresCondition: enable-turtle-ai
+		McvTypes: mcv
+		ConstructionYardTypes: gacnst
+		McvFactoryTypes: gaweap, naweap
+		MoveOldConyardFirst: false
+		MoveConyardTick: 8000
+		MinimumConstructionYardCount: 2
+
+	# ── Air AI: air superiority, helipads over barracks, small ground force ──
+	BaseBuilderBotModule@air:
+		RequiresCondition: enable-air-ai
+		MinimumExcessPower: 10
+		MaximumExcessPower: 300
+		ExcessPowerIncrement: 40
+		ExcessPowerIncreaseThreshold: 3
+		ConstructionYardTypes: gacnst
+		RefineryTypes: proc
+		PowerTypes: gapowr, gapowrup, napowr, naapwr
+		ProductionTypes: gapile, nahand, gaweap, naweap, gahpad, nahpad
+		TechTypes: garadr, naradr, gatech, natech
+		SiloTypes: gasilo
+		DefenseTypes: gavulc, gacsam, gactwr, nasam, nalasr
+		BuildingLimits:
+			proc: 3
+			gapile: 1
+			nahand: 1
+			gaweap: 1
+			naweap: 1
+			garadr: 1
+			naradr: 1
+			gatech: 1
+			natech: 1
+			gahpad: 6
+			nahpad: 6
+			gavulc: 3
+			gacsam: 6
+			gactwr: 6
+			nalasr: 3
+			nasam: 6
+		BuildingFractions:
+			proc: 20
+			gapile: 1
+			nahand: 1
+			gaweap: 1
+			naweap: 1
+			garadr: 1
+			naradr: 1
+			gatech: 1
+			natech: 1
+			gahpad: 20
+			nahpad: 20
+			gavulc: 3
+			gacsam: 10
+			gactwr: 5
+			nalasr: 3
+			nasam: 10
+		BuildingDelays:
+			garadr: 3000
+			naradr: 3000
+			gatech: 7000
+			natech: 7000
+	SquadManagerBotModule@air:
+		RequiresCondition: enable-air-ai
+		SquadSize: 1
+		ExcludeFromSquadsTypes: harv, mcv, dpod, hunter, repair, medic
+		ConstructionYardTypes: gacnst
+		AirUnitsTypes: orca, orcab, scrin, apache, jumpjet
+		ProtectionTypes: gacnst, proc, gasilo, gapowr, gapowrup, napowr, naapwr, gapile, nahand, gaweap, naweap, garadr, naradr, gahpad, nahpad, gatech, natech, gavulc, garock, gacsam, gactwr, naobel, nalasr, nasam, mcv, harv
+		IgnoredEnemyTargetTypes: Air
+	UnitBuilderBotModule@air:
+		RequiresCondition: enable-air-ai
+		UnitQueues: Vehicle, Infantry, Air
+		UnitsToBuild:
+			e1: 30
+			e2: 10
+			harv: 5
+			mmch: 5
+			smech: 5
+			orca: 30
+			orcab: 20
+			apache: 30
+			scrin: 20
+			jumpjet: 15
+		UnitLimits:
+			harv: 4
+			e1: 6
+			e2: 4
+	McvExpansionManagerBotModule@air:
+		RequiresCondition: enable-air-ai
 		McvTypes: mcv
 		ConstructionYardTypes: gacnst
 		McvFactoryTypes: gaweap, naweap

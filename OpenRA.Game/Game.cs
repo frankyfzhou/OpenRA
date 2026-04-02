@@ -156,6 +156,7 @@ namespace OpenRA
 		public static LocalPlayerProfile LocalPlayerProfile;
 
 		static bool takeScreenshot = false;
+		internal static bool HeadlessBotMode = false;
 		static Benchmark benchmark = null;
 
 		public static event Action OnShellmapLoaded = () => { };
@@ -941,10 +942,10 @@ namespace OpenRA
 			if (worldRenderer != null && OrderManager.World != worldRenderer.World)
 				InnerLogicTick(worldRenderer.World.OrderManager);
 
-			// Tick in-process server for WASM skirmish (after client tick).
+			// Tick in-process server for WASM/headless skirmish (after client tick).
 			// This processes the orders the client just sent and queues ACKs
 			// for the next tick's Receive(), keeping frames synchronized.
-			if (OperatingSystem.IsBrowser() && server != null)
+			if ((OperatingSystem.IsBrowser() || HeadlessBotMode) && server != null)
 			{
 				try
 				{
@@ -1043,6 +1044,10 @@ namespace OpenRA
 
 		static void Loop()
 		{
+			Console.Error.WriteLine("[headless] Loop() entered");
+			var loopLogTimer = RunTime;
+			var headlessBots = !string.IsNullOrEmpty(new LaunchArguments(new Arguments(Environment.GetCommandLineArgs())).Bots);
+			var gameOverReported = false;
 			// The game loop mainly does two things: logic updates and
 			// drawing on the screen.
 			// ---
@@ -1088,6 +1093,49 @@ namespace OpenRA
 
 			while (state == RunStatus.Running)
 			{
+				// Headless bot mode: skip all timing, run logic as fast as possible
+				if (headlessBots)
+				{
+					// Periodic headless diagnostic logging
+					var now0 = RunTime;
+					if (now0 - loopLogTimer > 5000)
+					{
+						loopLogTimer = now0;
+						var gs = OrderManager?.GameStarted ?? false;
+						var frame = OrderManager?.NetFrameNumber ?? -1;
+						Console.Error.WriteLine($"[headless] frame={frame} gameStarted={gs} world={OrderManager?.World != null}");
+					}
+
+					// Auto-exit when bot game is over
+					if (!gameOverReported && OrderManager?.World != null && OrderManager.World.IsGameOver)
+					{
+						gameOverReported = true;
+						var world = OrderManager.World;
+						Console.WriteLine("GAME_OVER");
+						Console.WriteLine($"FRAME:{world.WorldTick}");
+						foreach (var p in world.Players)
+						{
+							if (p.InternalName == "Everyone" || p.InternalName == "Neutral" || p.InternalName == "Creeps")
+								continue;
+							Console.WriteLine($"PLAYER:{p.InternalName}|{p.PlayerName}|{p.WinState}|{p.Faction.InternalName}");
+						}
+
+						Console.Error.WriteLine($"[headless] Game over at frame {world.WorldTick}, exiting.");
+						// Finalize replay before shutdown (in-process server has no background thread)
+						server?.EndGame();
+						Disconnect();
+						state = RunStatus.Success;
+						continue;
+					}
+
+					// Force tick time to always advance (bypass wall-clock rate limiting)
+					OrderManager.LastTickTime.Value = 0;
+					Ui.LastTickTime.Value = 0;
+
+					LogicTick();
+					continue;
+				}
+
 				var logicInterval = Ui.Timestep;
 				var logicWorld = worldRenderer?.World;
 
@@ -1276,9 +1324,9 @@ namespace OpenRA
 				AdvertiseOnLocalNetwork = !isSkirmish
 			};
 
-			if (OperatingSystem.IsBrowser())
+			if (OperatingSystem.IsBrowser() || HeadlessBotMode)
 			{
-				// WASM: create an in-process server (no TCP, no threads)
+				// WASM/headless: create an in-process server (no TCP, no threads)
 				server = new Server.Server(settings, ModData, isSkirmish ? ServerType.Skirmish : ServerType.Local);
 
 				// Accept in-process connection (validates client + runs lobby traits)
@@ -1318,18 +1366,30 @@ namespace OpenRA
 			benchmark = new Benchmark(prefix);
 		}
 
-		public static void LoadMap(string launchMap)
+		public static void LoadMap(string launchMap, string bots = null)
 		{
 			var orders = new List<Order>
 			{
-				Order.Command("option gamespeed default"),
-				Order.Command($"state {Session.ClientState.Ready}")
+				Order.Command("option gamespeed fastest"),
 			};
+
+			// If bots are specified, set up a spectator bot-only game
+			if (!string.IsNullOrEmpty(bots))
+			{
+				HeadlessBotMode = true;
+				var botTypes = bots.Split(',');
+				orders.Add(Order.Command("spectate"));
+				for (var i = 0; i < botTypes.Length; i++)
+					orders.Add(Order.Command($"slot_bot Multi{i} 0 {botTypes[i].Trim()}"));
+			}
+
+			orders.Add(Order.Command($"state {Session.ClientState.Ready}"));
 
 			var map = ModData.MapCache.SingleOrDefault(m => m.Uid == launchMap || Path.GetFileName(m.Path) == launchMap);
 			if (map == null)
 				throw new ArgumentException($"Could not find map '{launchMap}'.");
 
+			Console.Error.WriteLine($"[headless] LoadMap: {launchMap} uid={map.Uid} bots={bots} inProcess={HeadlessBotMode}");
 			CreateAndStartLocalServer(map.Uid, orders);
 		}
 
