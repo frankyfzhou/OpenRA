@@ -28,11 +28,17 @@ Player:
 		HarvesterTypes: harv
 		RefineryTypes: proc
 		InitialHarvesters: 2
+		HarvestersPerRefinery: 2
+		MaxHarvesters: 4
+		CashStallThreshold: 200
 	HarvesterBotModule@normal-turtle:
 		RequiresCondition: enable-normal-ai || enable-turtle-ai
 		HarvesterTypes: harv
 		RefineryTypes: proc
 		InitialHarvesters: 4
+		HarvestersPerRefinery: 3
+		MaxHarvesters: 8
+		CashStallThreshold: 200
 	PowerDownBotModule:
 		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-air-ai
 		PowerDownTypes: garadr, naradr, gavulc, garock, gacsam, gactwr, naobel, nalasr, nasam
@@ -40,6 +46,9 @@ Player:
 		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-air-ai
 		ResourceCreatorTypes: tibtre01, tibtre02, tibtre03, bigblue, bigblue3
 		ValuableResourceTypes: Tiberium, BlueTiberium
+		ResourceValueWeights:
+			Tiberium: 25
+			BlueTiberium: 40
 		HarvesterTypes: harv
 		RefineryTypes: proc
 		EnemyBaseBuildingTypes: gacnst, gapowr, gapowrup, napowr, naapwr, gapile, nahand, gaweap, naweap, garadr, naradr, gahpad, nahpad, gatech, natech, gavulc, garock, gacsam, gactwr, naobel, nalasr, nasam

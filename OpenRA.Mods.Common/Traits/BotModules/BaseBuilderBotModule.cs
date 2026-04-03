@@ -94,8 +94,11 @@ namespace OpenRA.Mods.Common.Traits
 			"for StructureProductionResumeDelay before retrying.")]
 		public readonly int MaximumFailedPlacementAttempts = 3;
 
-		[Desc("How many randomly chosen cells with resources to check when deciding refinery placement.")]
-		public readonly int MaxResourceCellsToCheck = 3;
+		[Desc("How many resource cells to evaluate when deciding refinery placement.")]
+		public readonly int MaxResourceCellsToCheck = 5;
+
+		[Desc("Radius (in cells) around each candidate resource cell to count nearby resources for density scoring.")]
+		public readonly int RefineryResourceSearchRadius = 6;
 
 		[Desc("Delay (in ticks) until rechecking for new BaseProviders.")]
 		public readonly int CheckForNewBasesDelay = 1500;

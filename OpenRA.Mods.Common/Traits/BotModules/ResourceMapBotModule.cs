@@ -11,6 +11,7 @@
 
 using System;
 using System.Collections.Frozen;
+using System.Collections.Generic;
 using System.Linq;
 using OpenRA.Traits;
 
@@ -35,6 +36,9 @@ namespace OpenRA.Mods.Common.Traits
 			"Defence and production building is suggested")]
 		public readonly FrozenSet<string> EnemyBaseBuildingTypes = FrozenSet<string>.Empty;
 
+		[Desc("Value weight per resource type for economy scoring. Higher weight = more attractive for refinery placement and harvester dispatch.")]
+		public readonly Dictionary<string, int> ResourceValueWeights = new();
+
 		[Desc("Delay (in ticks) for updating the indicies.")]
 		public readonly int UpdateResourceMapInverval = 67;
 
@@ -49,6 +53,7 @@ namespace OpenRA.Mods.Common.Traits
 		public int2 IndiceIndex;
 		public CPos IndiceCenter;
 		public int ResourceCellsCount;
+		public int WeightedResourceScore;
 		public CPos ResourceCellsCenter;
 		public CPos[] ResourceCreatorLocs;
 		public int PlayerRefineryCount;
@@ -149,14 +154,22 @@ namespace OpenRA.Mods.Common.Traits
 			var indice = resourceMapIndices[index];
 			var sumCellsX = 0;
 			var sumCellsY = 0;
+			var weightedScore = 0;
 
 			var resTiles = world.Map.FindTilesInAnnulus(indice.IndiceCenter, 0, indiceResourceScanRadius).Where(c =>
 			{
-				if (!Info.ValuableResourceTypes.Contains(resourceLayer.GetResource(c).Type))
+				var type = resourceLayer.GetResource(c).Type;
+				if (!Info.ValuableResourceTypes.Contains(type))
 					return false;
 
 				sumCellsX += c.X;
 				sumCellsY += c.Y;
+
+				if (Info.ResourceValueWeights.TryGetValue(type, out var weight))
+					weightedScore += weight;
+				else
+					weightedScore += 1;
+
 				return true;
 			}).ToList();
 
@@ -214,6 +227,7 @@ namespace OpenRA.Mods.Common.Traits
 				}).Select(a => a.Location).ToArray();
 
 			indice.ResourceCellsCount = resTilesCount;
+			indice.WeightedResourceScore = weightedScore;
 			indice.ResourceCellsCenter = bestCell;
 			indice.ResourceCreatorLocs = resourceCreatorLocs;
 			indice.PlayerRefineryCount = refineryCount;

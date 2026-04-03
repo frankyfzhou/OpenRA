@@ -51,6 +51,15 @@ namespace OpenRA.Mods.Common.Traits
 		[Desc("How many harvester should player owned at least.")]
 		public readonly int InitialHarvesters = 4;
 
+		[Desc("Target harvester-to-refinery ratio. Build harvesters until this ratio is met.")]
+		public readonly int HarvestersPerRefinery = 1;
+
+		[Desc("Maximum harvesters to maintain. -1 = unlimited.")]
+		public readonly int MaxHarvesters = -1;
+
+		[Desc("Ticks at zero money before force-building a harvester. -1 = disabled.")]
+		public readonly int CashStallThreshold = -1;
+
 		public override object Create(ActorInitializer init) { return new HarvesterBotModule(init.Self, this); }
 	}
 
@@ -88,9 +97,11 @@ namespace OpenRA.Mods.Common.Traits
 		ResourceClaimLayer claimLayer;
 		IBotRequestUnitProduction[] requestUnitProduction;
 		ResourceMapBotModule resourceMapModule;
+		PlayerResources playerResources;
 
 		int scanForLowEffectHarvestersTicks;
 		int scanForIdleHarvestersTicks;
+		int zeroMoneyTicks;
 		int respondToAttackCooldown = 40; // prevent too many responses to the same wave of attacks
 		bool firstTick = true;
 
@@ -109,6 +120,7 @@ namespace OpenRA.Mods.Common.Traits
 			requestUnitProduction = self.Owner.PlayerActor.TraitsImplementing<IBotRequestUnitProduction>().ToArray();
 			resourceLayer = world.WorldActor.TraitOrDefault<IResourceLayer>();
 			claimLayer = world.WorldActor.TraitOrDefault<ResourceClaimLayer>();
+			playerResources = self.Owner.PlayerActor.Trait<PlayerResources>();
 		}
 
 		public void WorldLoaded(World w, WorldRenderer wr)
@@ -154,6 +166,17 @@ namespace OpenRA.Mods.Common.Traits
 				firstTick = false;
 			}
 
+			// Track zero-money duration for cash stall detection
+			var refineryCount = AIUtils.CountActorByCommonName(refineries);
+			if (Info.CashStallThreshold >= 0 && refineryCount > 0)
+			{
+				var totalMoney = playerResources.Cash + playerResources.Resources;
+				if (totalMoney == 0)
+					zeroMoneyTicks++;
+				else
+					zeroMoneyTicks = 0;
+			}
+
 			// Find idle harvesters and give them orders:
 			// PERF: FindNextResource is expensive, so only perform one search per tick.
 			var searchedForResources = false;
@@ -165,17 +188,27 @@ namespace OpenRA.Mods.Common.Traits
 				scanForIdleHarvestersTicks = Info.ScanForIdleHarvestersInterval;
 				FindIdleHarvester();
 
-				// Less harvesters than refineries - build a new harvester
+				// Build harvesters based on: initial minimum, refinery ratio, and cash stall detection
 				var unitBuilder = requestUnitProduction.FirstEnabledTraitOrDefault();
 				if (unitBuilder != null && Info.HarvesterTypes.Count > 0)
 				{
 					var harvsNum = AIUtils.CountActorByCommonName(harvestersIndex);
-					var harvCountTooLow = harvsNum < Info.InitialHarvesters || harvsNum < AIUtils.CountActorByCommonName(refineries);
-					if (harvCountTooLow)
+					var atMaxHarvesters = Info.MaxHarvesters >= 0 && harvsNum >= Info.MaxHarvesters;
+
+					if (!atMaxHarvesters)
 					{
-						var harvesterType = Info.HarvesterTypes.Random(world.LocalRandom);
-						if (unitBuilder.RequestedProductionCount(bot, harvesterType) == 0)
-							unitBuilder.RequestUnitProduction(bot, harvesterType);
+						var cashStalled = Info.CashStallThreshold >= 0 && zeroMoneyTicks >= Info.CashStallThreshold;
+						var targetFromRatio = refineryCount * Info.HarvestersPerRefinery;
+						var harvCountTooLow = harvsNum < Info.InitialHarvesters
+							|| harvsNum < targetFromRatio
+							|| cashStalled;
+
+						if (harvCountTooLow)
+						{
+							var harvesterType = Info.HarvesterTypes.Random(world.LocalRandom);
+							if (unitBuilder.RequestedProductionCount(bot, harvesterType) == 0)
+								unitBuilder.RequestUnitProduction(bot, harvesterType);
+						}
 					}
 				}
 			}
@@ -210,7 +243,12 @@ namespace OpenRA.Mods.Common.Traits
 				// Initial attraction is indiceSideLengthSquare >> 5
 				var attraction = indiceSideLengthSquare >> 5;
 
-				attraction += baseIndice.ResourceCellsCount - baseIndice.PlayerHarvetserCount * Info.ResourceCellsPerHarvester;
+				// Use WeightedResourceScore if available (gem-aware), fall back to raw cell count
+				var effectiveResourceScore = baseIndice.WeightedResourceScore > 0
+					? baseIndice.WeightedResourceScore / Info.ResourceCellsPerHarvester
+					: baseIndice.ResourceCellsCount;
+
+				attraction += effectiveResourceScore - baseIndice.PlayerHarvetserCount * Info.ResourceCellsPerHarvester;
 
 				var lackHarvs = attraction > 0 ? attraction / Info.ResourceCellsPerHarvester : (attraction == 0 && baseIndice.ResourceCellsCount > 0 ? 1 : -1);
 
@@ -423,6 +461,20 @@ namespace OpenRA.Mods.Common.Traits
 					// This allows future custom cost checks to reuse the result for that area,
 					// rather than calculating it fresh for every cell explored for the path.
 					avoidanceCost = CalculateAvoidanceCostForBin(world, bin, cellRadius, actor, minCellCost, cellCostMultiplier);
+
+					// Prefer high-value resource cells (e.g., BlueTiberium over Tiberium).
+					// Lower-value targets get a small extra cost, biasing pathfinder toward gems.
+					if (resourceMapModule?.Info.ResourceValueWeights is { Count: > 0 } weights)
+					{
+						var resourceType = resourceTypesByCell.GetValueOrDefault(loc);
+						if (resourceType != null)
+						{
+							var maxWeight = weights.Values.Max();
+							if (weights.TryGetValue(resourceType, out var weight))
+								avoidanceCost += (maxWeight - weight) * minCellCost;
+						}
+					}
+
 					avoidanceCostForBin.Add(bin, avoidanceCost);
 					return avoidanceCost;
 				});

@@ -565,23 +565,55 @@ namespace OpenRA.Mods.Common.Traits
 							baseBuilder.ResourceMapModule.Info.ValuableResourceTypes.Contains(resourceLayer.GetResource(c).Type)
 							: resourceLayer.GetResource(c).Type != null);
 
-						// Find the closest refinery we have if we have any when not failing to place for the first time
-						var closestRefinery = failCount <= 0
-							? baseBuilder.RefineryBuildings.Actors.Where(a => !a.IsDead)?.ClosestToIgnoringPath(world.Map.CenterOfCell(resourceBaseCenter))
-							: null;
+						IEnumerable<CPos> resourcesShouldCheck;
 
-						IEnumerable<CPos> resourcesShouldCheck = null;
-
-						if (closestRefinery == null)
-							resourcesShouldCheck = nearbyResources.Shuffle(world.LocalRandom).Take(baseBuilder.Info.MaxResourceCellsToCheck);
-						else if (requestRef != null)
+						if (requestRef != null && failCount <= 0)
 						{
+							// Requested refinery placement — sort by distance to the requested location
 							resourcesShouldCheck = nearbyResources.OrderBy(c => (c - baseBuilder.RequestedRefineries[requestRef].ResourceLoc).LengthSquared)
 								.Take(baseBuilder.Info.MaxResourceCellsToCheck);
 						}
+						else if (baseBuilder.ResourceMapModule != null)
+						{
+							// Score-based placement: sector weighted score + local density - distance penalty
+							var searchRadius = baseBuilder.Info.RefineryResourceSearchRadius;
+							var valueWeights = baseBuilder.ResourceMapModule.Info.ResourceValueWeights;
+
+							resourcesShouldCheck = nearbyResources
+								.Select(c =>
+								{
+									// Sector score from ResourceMapModule
+									var sector = baseBuilder.ResourceMapModule.FindClosestIndiceFromCPos(c);
+									var sectorScore = sector?.WeightedResourceScore ?? 0;
+
+									// Local density within search radius, weighted by value
+									var localDensity = 0;
+									foreach (var nearby in world.Map.FindTilesInCircle(c, searchRadius))
+									{
+										var resType = resourceLayer.GetResource(nearby).Type;
+										if (resType != null)
+										{
+											if (valueWeights.TryGetValue(resType, out var w))
+												localDensity += w;
+											else
+												localDensity++;
+										}
+									}
+
+									// Distance penalty (closer to base = better)
+									var dist = (c - resourceBaseCenter).LengthSquared;
+
+									return (Cell: c, Score: sectorScore + localDensity - dist / 10);
+								})
+								.OrderByDescending(x => x.Score)
+								.Take(baseBuilder.Info.MaxResourceCellsToCheck)
+								.Select(x => x.Cell);
+						}
 						else
-							resourcesShouldCheck = nearbyResources.OrderByDescending(c => (c - closestRefinery.Location).LengthSquared)
-								.Take(baseBuilder.Info.MaxResourceCellsToCheck);
+						{
+							// Fallback: no resource map module, shuffle randomly
+							resourcesShouldCheck = nearbyResources.Shuffle(world.LocalRandom).Take(baseBuilder.Info.MaxResourceCellsToCheck);
+						}
 
 						foreach (var r in resourcesShouldCheck)
 						{
