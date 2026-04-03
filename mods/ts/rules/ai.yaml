@@ -91,7 +91,7 @@ Player:
 	# ── Rush AI: fast aggression, tanks + infantry, low defenses ──
 	BaseBuilderBotModule@rush:
 		RequiresCondition: enable-rush-ai
-		MinimumExcessPower: 0
+		MinimumExcessPower: 10
 		MaximumExcessPower: 150
 		ExcessPowerIncrement: 40
 		ExcessPowerIncreaseThreshold: 4
@@ -120,6 +120,8 @@ Player:
 			nalasr: 3
 			naobel: 1
 		BuildingFractions:
+			gapowr: 5
+			napowr: 5
 			proc: 25
 			gapile: 3
 			nahand: 3
@@ -140,7 +142,7 @@ Player:
 			natech: 10000
 	SquadManagerBotModule@rush:
 		RequiresCondition: enable-rush-ai
-		SquadSize: 15
+		SquadSize: 8
 		ExcludeFromSquadsTypes: harv, mcv, dpod, hunter, repair, medic
 		ConstructionYardTypes: gacnst
 		AirUnitsTypes: orca, orcab, scrin, apache, jumpjet
@@ -445,7 +447,7 @@ Player:
 			natech: 7000
 	SquadManagerBotModule@air:
 		RequiresCondition: enable-air-ai
-		SquadSize: 1
+		SquadSize: 6
 		ExcludeFromSquadsTypes: harv, mcv, dpod, hunter, repair, medic
 		ConstructionYardTypes: gacnst
 		AirUnitsTypes: orca, orcab, scrin, apache, jumpjet

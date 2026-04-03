@@ -1042,12 +1042,47 @@ namespace OpenRA
 			PerfHistory.Items["terrain_lighting"].Tick(isActive);
 		}
 
+		/// <summary>Get player economy/combat stats via reflection (Game.cs can't reference Mods.Common types).</summary>
+		static (int Earned, int Spent, int KillsCost, int DeathsCost, int ArmyValue, int AssetsValue, int Income) GetPlayerStats(Player p)
+		{
+			var earned = 0; var spent = 0; var killsCost = 0; var deathsCost = 0;
+			var armyValue = 0; var assetsValue = 0; var income = 0;
+
+			// PlayerResources implements ISync (OpenRA.Game), get Earned/Spent
+			foreach (var trait in p.PlayerActor.TraitsImplementing<ISync>())
+			{
+				var t = trait.GetType();
+				if (t.Name != "PlayerResources")
+					continue;
+				earned = (int)(t.GetField("Earned")?.GetValue(trait) ?? 0);
+				spent = (int)(t.GetField("Spent")?.GetValue(trait) ?? 0);
+				break;
+			}
+
+			// PlayerStatistics implements ITick (OpenRA.Traits), get combat stats
+			foreach (var trait in p.PlayerActor.TraitsImplementing<Traits.ITick>())
+			{
+				var t = trait.GetType();
+				if (t.Name != "PlayerStatistics")
+					continue;
+				killsCost = (int)(t.GetField("KillsCost")?.GetValue(trait) ?? 0);
+				deathsCost = (int)(t.GetField("DeathsCost")?.GetValue(trait) ?? 0);
+				armyValue = (int)(t.GetField("ArmyValue")?.GetValue(trait) ?? 0);
+				assetsValue = (int)(t.GetField("AssetsValue")?.GetValue(trait) ?? 0);
+				income = (int)(t.GetField("Income")?.GetValue(trait) ?? 0);
+				break;
+			}
+
+			return (earned, spent, killsCost, deathsCost, armyValue, assetsValue, income);
+		}
+
 		static void Loop()
 		{
 			Console.Error.WriteLine("[headless] Loop() entered");
 			var loopLogTimer = RunTime;
 			var headlessBots = !string.IsNullOrEmpty(new LaunchArguments(new Arguments(Environment.GetCommandLineArgs())).Bots);
 			var gameOverReported = false;
+			var lastSnapTick = 0;
 			// The game loop mainly does two things: logic updates and
 			// drawing on the screen.
 			// ---
@@ -1106,6 +1141,24 @@ namespace OpenRA
 						Console.Error.WriteLine($"[headless] frame={frame} gameStarted={gs} world={OrderManager?.World != null}");
 					}
 
+					// Periodic telemetry snapshots (every 5000 ticks) for phase-aware AI evaluation
+					if (OrderManager?.World != null && !gameOverReported)
+					{
+						var snapWorld = OrderManager.World;
+						var tick = snapWorld.WorldTick;
+						if (tick > 0 && tick % 5000 == 0 && tick != lastSnapTick)
+						{
+							lastSnapTick = tick;
+							foreach (var p in snapWorld.Players)
+							{
+								if (p.InternalName == "Everyone" || p.InternalName == "Neutral" || p.InternalName == "Creeps")
+									continue;
+								var stats = GetPlayerStats(p);
+								Console.WriteLine($"SNAP:{tick}:{p.InternalName}|earned={stats.Earned}|spent={stats.Spent}|army={stats.ArmyValue}|assets={stats.AssetsValue}|kills={stats.KillsCost}|deaths={stats.DeathsCost}|income={stats.Income}");
+							}
+						}
+					}
+
 					// Auto-exit when bot game is over
 					if (!gameOverReported && OrderManager?.World != null && OrderManager.World.IsGameOver)
 					{
@@ -1117,7 +1170,8 @@ namespace OpenRA
 						{
 							if (p.InternalName == "Everyone" || p.InternalName == "Neutral" || p.InternalName == "Creeps")
 								continue;
-							Console.WriteLine($"PLAYER:{p.InternalName}|{p.PlayerName}|{p.WinState}|{p.Faction.InternalName}");
+							var stats = GetPlayerStats(p);
+							Console.WriteLine($"PLAYER:{p.InternalName}|{p.PlayerName}|{p.WinState}|{p.Faction.InternalName}|earned={stats.Earned}|spent={stats.Spent}|killCost={stats.KillsCost}|deathCost={stats.DeathsCost}|army={stats.ArmyValue}|assets={stats.AssetsValue}");
 						}
 
 						Console.Error.WriteLine($"[headless] Game over at frame {world.WorldTick}, exiting.");
