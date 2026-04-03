@@ -1141,12 +1141,12 @@ namespace OpenRA
 						Console.Error.WriteLine($"[headless] frame={frame} gameStarted={gs} world={OrderManager?.World != null}");
 					}
 
-					// Periodic telemetry snapshots (every 5000 ticks) for phase-aware AI evaluation
+					// Periodic telemetry snapshots (every 2000 ticks) for phase-aware AI evaluation
 					if (OrderManager?.World != null && !gameOverReported)
 					{
 						var snapWorld = OrderManager.World;
 						var tick = snapWorld.WorldTick;
-						if (tick > 0 && tick % 5000 == 0 && tick != lastSnapTick)
+						if (tick > 0 && tick % 2000 == 0 && tick != lastSnapTick)
 						{
 							lastSnapTick = tick;
 							foreach (var p in snapWorld.Players)
