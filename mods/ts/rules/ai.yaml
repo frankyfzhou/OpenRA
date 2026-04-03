@@ -79,7 +79,13 @@ Player:
 	BuildingRepairBotModule:
 		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-air-ai
 	McvManagerBotModule:
-		RequiresCondition: enable-rush-ai || enable-normal-ai || enable-turtle-ai || enable-air-ai
+		RequiresCondition: enable-normal-ai || enable-turtle-ai || enable-air-ai
+		McvTypes: mcv
+		ConstructionYardTypes: gacnst
+		McvFactoryTypes: gaweap, naweap
+		MaxMcvOrdersPerGame: 8
+	McvManagerBotModule@rush:
+		RequiresCondition: enable-rush-ai
 		McvTypes: mcv
 		ConstructionYardTypes: gacnst
 		McvFactoryTypes: gaweap, naweap
@@ -146,7 +152,7 @@ Player:
 	SquadManagerBotModule@rush:
 		RequiresCondition: enable-rush-ai
 		SquadSize: 8
-		MinimumAttackForcePercent: 50
+		MinimumAttackForcePercent: 30
 		ExcludeFromSquadsTypes: harv, mcv, dpod, hunter, repair, medic
 		ConstructionYardTypes: gacnst
 		AirUnitsTypes: orca, orcab, scrin, apache, jumpjet
@@ -180,6 +186,7 @@ Player:
 		McvFactoryTypes: gaweap, naweap
 		MoveOldConyardFirst: true
 		MinimumConstructionYardCount: 1
+		MaxMcvOrdersPerGame: 3
 
 	# ── Normal AI: balanced play, all unit types, moderate defenses ──
 	BaseBuilderBotModule@normal:
@@ -284,6 +291,7 @@ Player:
 		ConstructionYardTypes: gacnst
 		McvFactoryTypes: gaweap, naweap
 		MinimumConstructionYardCount: 2
+		MaxMcvOrdersPerGame: 5
 
 	# ── Turtle AI: heavy defenses, slow expansion, large squads ──
 	BaseBuilderBotModule@turtle:
@@ -392,7 +400,8 @@ Player:
 		McvFactoryTypes: gaweap, naweap
 		MoveOldConyardFirst: false
 		MoveConyardTick: 8000
-		MinimumConstructionYardCount: 2
+		MinimumConstructionYardCount: 1
+		MaxMcvOrdersPerGame: 5
 
 	# ── Air AI: air superiority, helipads over barracks, small ground force ──
 	BaseBuilderBotModule@air:
@@ -460,23 +469,24 @@ Player:
 		UnitQueues: Vehicle, Infantry, Air
 		AircraftToRearmActorRatio: 3
 		UnitsToBuild:
-			e1: 10
+			e1: 30
+			e2: 10
 			harv: 5
 			mmch: 5
-			orca: 40
-			orcab: 30
-			apache: 40
-			scrin: 25
-			jumpjet: 20
+			smech: 5
+			orca: 30
+			orcab: 20
+			apache: 30
+			scrin: 20
+			jumpjet: 15
 		UnitLimits:
 			harv: 4
-			e1: 4
-			e2: 2
-			mmch: 3
-			smech: 2
+			e1: 6
+			e2: 4
 	McvExpansionManagerBotModule@air:
 		RequiresCondition: enable-air-ai
 		McvTypes: mcv
 		ConstructionYardTypes: gacnst
 		McvFactoryTypes: gaweap, naweap
-		MinimumConstructionYardCount: 1
+		MinimumConstructionYardCount: 2
+		MaxMcvOrdersPerGame: 5

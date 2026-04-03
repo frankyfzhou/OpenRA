@@ -35,6 +35,9 @@ namespace OpenRA.Mods.Common.Traits
 		[Desc("Try to maintain at least this many ConstructionYardTypes, build an MCV if number is below this.")]
 		public readonly int MinimumConstructionYardCount = 1;
 
+		[Desc("Maximum MCV build orders per game. -1 = unlimited.")]
+		public readonly int MaxMcvOrdersPerGame = -1;
+
 		[Desc("Try to maintain at additional this many ConstructionYardTypes.")]
 		public readonly int AdditionalConstructionYardCount = 0;
 
@@ -118,6 +121,7 @@ namespace OpenRA.Mods.Common.Traits
 		Actor mustUndeployCoyard;
 
 		int scanInterval;
+		int mcvOrderCount;
 		int buildMCVInterval;
 		int moveConyardInterval;
 		bool firstTick = true;
@@ -568,6 +572,8 @@ namespace OpenRA.Mods.Common.Traits
 		{
 			if (Info.McvTypes.Count <= 0)
 				return;
+			if (Info.MaxMcvOrdersPerGame >= 0 && mcvOrderCount >= Info.MaxMcvOrdersPerGame)
+				return;
 			if (AIUtils.CountActorByCommonName(mcvFactories) <= 0)
 				return;
 			var mcvNum = AIUtils.CountActorByCommonName(mcvs);
@@ -600,7 +606,10 @@ namespace OpenRA.Mods.Common.Traits
 
 			// Make sure we only request one MCV at a time.
 			if (unitBuilder.RequestedProductionCount(bot, mcvType) <= 0)
+			{
 				unitBuilder.RequestUnitProduction(bot, mcvType);
+				mcvOrderCount++;
+			}
 		}
 
 		void DeployMcvs(IBot bot, bool chooseLocation)
