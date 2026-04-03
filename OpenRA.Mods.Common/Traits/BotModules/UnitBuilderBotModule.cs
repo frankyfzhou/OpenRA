@@ -9,6 +9,7 @@
  */
 #endregion
 
+using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -152,6 +153,8 @@ namespace OpenRA.Mods.Common.Traits
 				return;
 
 			bot.QueueOrder(Order.StartProduction(queue.Actor, unit.Name, 1));
+			if (Game.HeadlessBotMode)
+				Console.WriteLine($"BUILD:{world.WorldTick}:{player.InternalName}|unit={unit.Name}|queue=auto");
 		}
 
 		// In cases where we want to build a specific unit but don't know the queue name (because there's more than one possibility)
@@ -177,6 +180,8 @@ namespace OpenRA.Mods.Common.Traits
 			{
 				bot.QueueOrder(Order.StartProduction(queue.Actor, name, 1));
 				AIUtils.BotDebug("{0} decided to build {1} (external request)", queue.Actor.Owner, name);
+				if (Game.HeadlessBotMode)
+					Console.WriteLine($"BUILD:{world.WorldTick}:{player.InternalName}|unit={name}|queue=request");
 			}
 		}
 

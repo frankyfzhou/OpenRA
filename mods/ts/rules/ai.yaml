@@ -132,8 +132,10 @@ Player:
 			gatech: 1
 			natech: 1
 			gavulc: 4
+			gacsam: 4
 			gactwr: 6
 			nalasr: 4
+			nasam: 4
 			naobel: 2
 		BuildingDelays:
 			garadr: 5000
@@ -147,7 +149,6 @@ Player:
 		ConstructionYardTypes: gacnst
 		AirUnitsTypes: orca, orcab, scrin, apache, jumpjet
 		ProtectionTypes: gacnst, proc, gasilo, gapowr, gapowrup, napowr, naapwr, gapile, nahand, gaweap, naweap, garadr, naradr, gahpad, nahpad, gatech, natech, gavulc, garock, gacsam, gactwr, naobel, nalasr, nasam, mcv, harv
-		IgnoredEnemyTargetTypes: Air
 	UnitBuilderBotModule@rush:
 		RequiresCondition: enable-rush-ai
 		UnitQueues: Vehicle, Infantry, Air
@@ -238,12 +239,11 @@ Player:
 			natech: 8000
 	SquadManagerBotModule@normal:
 		RequiresCondition: enable-normal-ai
-		SquadSize: 25
+		SquadSize: 12
 		ExcludeFromSquadsTypes: harv, mcv, dpod, hunter, repair, medic
 		ConstructionYardTypes: gacnst
 		AirUnitsTypes: orca, orcab, scrin, apache, jumpjet
 		ProtectionTypes: gacnst, proc, gasilo, gapowr, gapowrup, napowr, naapwr, gapile, nahand, gaweap, naweap, garadr, naradr, gahpad, nahpad, gatech, natech, gavulc, garock, gacsam, gactwr, naobel, nalasr, nasam, mcv, harv
-		IgnoredEnemyTargetTypes: Air
 		ProtectUnitScanRadius: 15
 		ProtectionScanRadius: 12
 	UnitBuilderBotModule@normal:
@@ -348,9 +348,8 @@ Player:
 		ConstructionYardTypes: gacnst
 		AirUnitsTypes: orca, orcab, scrin, apache, jumpjet
 		ProtectionTypes: gacnst, proc, gasilo, gapowr, gapowrup, napowr, naapwr, gapile, nahand, gaweap, naweap, garadr, naradr, gahpad, nahpad, gatech, natech, gavulc, garock, gacsam, gactwr, naobel, nalasr, nasam, mcv, harv
-		IgnoredEnemyTargetTypes: Air
-		RushInterval: 100000
-		MinimumAttackForceDelay: 100000
+		RushInterval: 40000
+		MinimumAttackForceDelay: 40000
 		ProtectUnitScanRadius: 30
 		ProtectionScanRadius: 15
 	UnitBuilderBotModule@turtle:

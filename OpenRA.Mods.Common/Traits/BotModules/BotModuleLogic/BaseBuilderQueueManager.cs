@@ -163,6 +163,8 @@ namespace OpenRA.Mods.Common.Traits
 					return false;
 
 				bot.QueueOrder(Order.StartProduction(queue.Actor, item.Name, 1));
+				if (Game.HeadlessBotMode)
+					Console.WriteLine($"BUILD:{world.WorldTick}:{player.InternalName}|building={item.Name}|action=queue");
 				itemQueuedThisTick = true;
 			}
 			else if (currentBuilding != null && currentBuilding.Done)
@@ -209,6 +211,8 @@ namespace OpenRA.Mods.Common.Traits
 					{
 						AIUtils.BotDebug($"{player} has nowhere to place {currentBuilding.Item}");
 						bot.QueueOrder(Order.CancelProduction(queue.Actor, currentBuilding.Item, 1));
+						if (Game.HeadlessBotMode)
+							Console.WriteLine($"BUILD:{world.WorldTick}:{player.InternalName}|building={currentBuilding.Item}|action=cancel");
 						if (baseBuilder.BaseExpansionModules == null)
 						{
 							cachedBuildings = world.ActorsHavingTrait<Building>().Count(a => a.Owner == player);
@@ -232,6 +236,8 @@ namespace OpenRA.Mods.Common.Traits
 						ExtraData = queue.Actor.ActorID,
 						SuppressVisualFeedback = true
 					});
+					if (Game.HeadlessBotMode)
+						Console.WriteLine($"BUILD:{world.WorldTick}:{player.InternalName}|building={currentBuilding.Item}|action=place|loc={location.Value.X},{location.Value.Y}");
 
 					// After succesfuly placing a building, nudge BaseExpansionModules to expand.
 					// We want to avoid expanding too often, so we make a judgement by counting buildings.

@@ -9,6 +9,7 @@
  */
 #endregion
 
+using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Linq;
@@ -58,6 +59,9 @@ namespace OpenRA.Mods.Common
 		{
 			if (Game.Settings.Debug.BotDebug)
 				TextNotificationsManager.Debug(format, args);
+
+			if (Game.HeadlessBotMode)
+				Console.WriteLine("BOTDEBUG:" + string.Format(format, args));
 		}
 
 		public static IEnumerable<Order> ClearBlockersOrders(List<CPos> tiles, Player owner, Actor ignoreActor = null)

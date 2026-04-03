@@ -322,11 +322,15 @@ namespace OpenRA.Mods.Common.Traits
 		{
 			var ret = new Squad(bot, this, type, target);
 			Squads.Add(ret);
+			if (Game.HeadlessBotMode)
+				Console.WriteLine($"SQUAD:{World.WorldTick}:{Player.InternalName}|action=form|type={type}|target={target.Actor?.Info.Name ?? "none"}");
 			return ret;
 		}
 
 		internal void UnregisterSquad(Squad squad)
 		{
+			if (Game.HeadlessBotMode)
+				Console.WriteLine($"SQUAD:{World.WorldTick}:{Player.InternalName}|action=disband|type={squad.Type}|units={squad.Units.Count}");
 			activeUnits.ExceptWith(squad.Units);
 			squad.Units.Clear();
 

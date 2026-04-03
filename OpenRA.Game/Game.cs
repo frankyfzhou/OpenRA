@@ -156,7 +156,7 @@ namespace OpenRA
 		public static LocalPlayerProfile LocalPlayerProfile;
 
 		static bool takeScreenshot = false;
-		internal static bool HeadlessBotMode = false;
+		public static bool HeadlessBotMode = false;
 		static Benchmark benchmark = null;
 
 		public static event Action OnShellmapLoaded = () => { };
