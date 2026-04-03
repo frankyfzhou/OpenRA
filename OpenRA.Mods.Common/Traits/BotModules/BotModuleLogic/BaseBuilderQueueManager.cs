@@ -575,17 +575,14 @@ namespace OpenRA.Mods.Common.Traits
 						}
 						else if (baseBuilder.ResourceMapModule != null)
 						{
-							// Score-based placement: sector weighted score + local density - distance penalty
+							// Score-based placement: prioritize proximity, use value as tiebreaker.
+							// Distance dominates — a nearby ore patch always beats a distant gem patch.
 							var searchRadius = baseBuilder.Info.RefineryResourceSearchRadius;
 							var valueWeights = baseBuilder.ResourceMapModule.Info.ResourceValueWeights;
 
 							resourcesShouldCheck = nearbyResources
 								.Select(c =>
 								{
-									// Sector score from ResourceMapModule
-									var sector = baseBuilder.ResourceMapModule.FindClosestIndiceFromCPos(c);
-									var sectorScore = sector?.WeightedResourceScore ?? 0;
-
 									// Local density within search radius, weighted by value
 									var localDensity = 0;
 									foreach (var nearby in world.Map.FindTilesInCircle(c, searchRadius))
@@ -600,10 +597,12 @@ namespace OpenRA.Mods.Common.Traits
 										}
 									}
 
-									// Distance penalty (closer to base = better)
+									// Distance penalty dominates: subtract full LengthSquared.
+									// Value bonus is small (localDensity / 10) — only breaks ties between
+									// equally-distant patches. A close ore patch always beats a far gem patch.
 									var dist = (c - resourceBaseCenter).LengthSquared;
 
-									return (Cell: c, Score: sectorScore + localDensity - dist / 10);
+									return (Cell: c, Score: localDensity / 10 - dist);
 								})
 								.OrderByDescending(x => x.Score)
 								.Take(baseBuilder.Info.MaxResourceCellsToCheck)
