@@ -48,19 +48,31 @@ namespace OpenRA.Network
 			// Self-acknowledge: project the frame by OrderLatency (same as server does)
 			var projectedFrame = frame + server.OrderLatency;
 			pendingSelfAcks.Enqueue((projectedFrame, packet));
-			// Still feed the packet to the server for AI/trait processing
-			serverConn.FeedPacket(server, frame, packet.Serialize(frame));
+
+			// FeedPacket expects raw order data WITHOUT the 4-byte frame prefix.
+			// The TCP path strips the frame during header parsing; we must match that format
+			// so Server.ReceiveOrders can correctly identify SyncHash vs regular orders via data[0].
+			var serialized = packet.Serialize(frame);
+			serverConn.FeedPacket(server, frame, serialized.AsSpan(4).ToArray());
 		}
 
 		void IConnection.SendImmediate(IEnumerable<Order> orders)
 		{
 			var packet = new OrderPacket(orders);
-			serverConn.FeedPacket(server, 0, packet.Serialize(0));
+			var serialized = packet.Serialize(0);
+			serverConn.FeedPacket(server, 0, serialized.AsSpan(4).ToArray());
 		}
 
 		void IConnection.SendSync(int frame, int syncHash, ulong defeatState)
 		{
-			serverConn.FeedPacket(server, frame, OrderIO.SerializeSync((frame, syncHash, defeatState)));
+			// Send raw sync data without frame prefix (matches TCP wire format).
+			// data[0] must be OrderType.SyncHash (0x65) so Server.ReceiveOrders
+			// correctly skips the OrderLatency adjustment for sync packets.
+			var ms = new MemoryStream(Order.SyncHashOrderLength);
+			ms.WriteByte((byte)OrderType.SyncHash);
+			ms.Write(BitConverter.GetBytes(syncHash));
+			ms.Write(BitConverter.GetBytes(defeatState));
+			serverConn.FeedPacket(server, frame, ms.ToArray());
 		}
 
 		void IConnection.Receive(OrderManager orderManager)
