@@ -39,6 +39,10 @@ namespace OpenRA.Mods.Common.Traits
 		[Desc("What units should the AI have a maximum limit to train.")]
 		public readonly FrozenDictionary<string, int> UnitLimits = null;
 
+		[Desc("Maximum aircraft per rearm building (helipad). Higher values allow building more aircraft than helipads.",
+			"Default 1 = one aircraft per helipad. Air-focused bots should set 2-3.")]
+		public readonly int AircraftToRearmActorRatio = 1;
+
 		[Desc("When should the AI start train specific units.")]
 		public readonly FrozenDictionary<string, int> UnitDelays = null;
 
@@ -205,9 +209,10 @@ namespace OpenRA.Mods.Common.Traits
 				if (Info.UnitLimits != null && Info.UnitLimits.TryGetValue(unit.Name, out var count) && unitCount >= count)
 					continue;
 
-				var error = allUnits.Length > 0 ? unitCount * 100 / allUnits.Length - share : -1;
-				if (error < 0)
-					return HasAdequateAirUnitReloadBuildings(unit) ? unit : null;
+				if (!HasAdequateAirUnitReloadBuildings(unit))
+					continue;
+
+				var error = allUnits.Length > 0 ? unitCount * 100 / allUnits.Length - share : -share;
 
 				if (error < desiredError)
 				{
@@ -216,7 +221,7 @@ namespace OpenRA.Mods.Common.Traits
 				}
 			}
 
-			return desiredUnit != null ? (HasAdequateAirUnitReloadBuildings(desiredUnit) ? desiredUnit : null) : null;
+			return desiredUnit;
 		}
 
 		// For mods like RA (number of RearmActors must match the number of aircraft)
@@ -233,7 +238,7 @@ namespace OpenRA.Mods.Common.Traits
 
 			var countOwnAir = AIUtils.CountActorsWithNameAndTrait<IPositionable>(actorInfo.Name, player);
 			var countBuildings = rearmableInfo.RearmActors.Sum(b => AIUtils.CountActorsWithNameAndTrait<Building>(b, player));
-			if (countOwnAir >= countBuildings)
+			if (countOwnAir >= countBuildings * Info.AircraftToRearmActorRatio)
 				return false;
 
 			return true;

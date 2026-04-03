@@ -32,6 +32,9 @@ namespace OpenRA.Mods.Common.Traits
 		[Desc("Try to maintain at least this many ConstructionYardTypes, build an MCV if number is below this.")]
 		public readonly int MinimumConstructionYardCount = 1;
 
+		[Desc("Maximum number of MCV build orders per game. -1 for unlimited.")]
+		public readonly int MaxMcvOrdersPerGame = -1;
+
 		[Desc("Delay (in ticks) between looking for and giving out orders to new MCVs.")]
 		public readonly int ScanForNewMcvInterval = 20;
 
@@ -71,6 +74,7 @@ namespace OpenRA.Mods.Common.Traits
 		CPos initialBaseCenter;
 		int scanInterval;
 		bool firstTick = true;
+		int mcvOrderCount;
 
 		public McvManagerBotModule(Actor self, McvManagerBotModuleInfo info)
 			: base(info)
@@ -120,13 +124,20 @@ namespace OpenRA.Mods.Common.Traits
 				{
 					var mcvType = Info.McvTypes.Random(world.LocalRandom);
 					if (unitBuilder.RequestedProductionCount(bot, mcvType) == 0)
+					{
 						unitBuilder.RequestUnitProduction(bot, mcvType);
+						mcvOrderCount++;
+					}
 				}
 			}
 		}
 
 		bool ShouldBuildMCV()
 		{
+			// Respect per-game MCV build cap if configured.
+			if (Info.MaxMcvOrdersPerGame >= 0 && mcvOrderCount >= Info.MaxMcvOrdersPerGame)
+				return false;
+
 			// Only build MCV if we don't already have one in the field.
 			var allowedToBuildMCV = AIUtils.CountActorByCommonName(mcvs) == 0;
 			if (!allowedToBuildMCV)

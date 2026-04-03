@@ -155,10 +155,10 @@ namespace OpenRA.Mods.Common.Traits.BotModules.Squads
 				lastUpdatedTick = owner.World.WorldTick;
 			}
 
-			// HACK: Drop back to the idle state if we haven't moved in 2.5 seconds
+			// HACK: Drop back to the idle state if we haven't moved.
 			// This works around the squad being stuck trying to attack-move to a location
 			// that they cannot path to, generating expensive pathfinding calls each tick.
-			if (owner.World.WorldTick > lastUpdatedTick + 63)
+			if (owner.World.WorldTick > lastUpdatedTick + owner.SquadManager.Info.StuckTickThreshold)
 			{
 				owner.FuzzyStateMachine.ChangeState(owner, new GroundUnitsIdleState());
 				return;
@@ -232,10 +232,10 @@ namespace OpenRA.Mods.Common.Traits.BotModules.Squads
 				lastUpdatedTick = owner.World.WorldTick;
 			}
 
-			// HACK: Drop back to the idle state if we haven't moved in 2.5 seconds
+			// HACK: Drop back to the idle state if we haven't moved.
 			// This works around the squad being stuck trying to attack-move to a location
 			// that they cannot path to, generating expensive pathfinding calls each tick.
-			if (owner.World.WorldTick > lastUpdatedTick + 63)
+			if (owner.World.WorldTick > lastUpdatedTick + owner.SquadManager.Info.StuckTickThreshold)
 			{
 				owner.FuzzyStateMachine.ChangeState(owner, new GroundUnitsIdleState());
 				return;

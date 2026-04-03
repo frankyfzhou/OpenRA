@@ -56,6 +56,14 @@ namespace OpenRA.Mods.Common.Traits
 		[Desc("Random number of up to this many units is added to squad size when creating an attack squad.")]
 		public readonly int SquadSizeRandomBonus = 30;
 
+		[Desc("Percentage (0-100) of SquadSize required before forming an attack force.",
+			"Lower values allow attacking with fewer units. 100 = require full SquadSize (default).")]
+		public readonly int MinimumAttackForcePercent = 100;
+
+		[Desc("Number of ticks a squad can be stuck (no movement or target change) before reverting to idle.",
+			"Higher values give squads more patience before giving up. Default: 63 (~2.5 seconds).")]
+		public readonly int StuckTickThreshold = 63;
+
 		[Desc("Delay (in ticks) between giving out orders to units.")]
 		public readonly int AssignRolesInterval = 50;
 
@@ -425,8 +433,9 @@ namespace OpenRA.Mods.Common.Traits
 			// Create an attack force when we have enough units around our base.
 			// (don't bother leaving any behind for defense)
 			var randomizedSquadSize = Info.SquadSize + World.LocalRandom.Next(Info.SquadSizeRandomBonus);
+			var requiredSize = Math.Max(1, randomizedSquadSize * Info.MinimumAttackForcePercent / 100);
 
-			if (unitsHangingAroundTheBase.Count >= randomizedSquadSize)
+			if (unitsHangingAroundTheBase.Count >= requiredSize)
 			{
 				var attackForce = RegisterNewSquad(bot, SquadType.Assault);
 
@@ -448,7 +457,8 @@ namespace OpenRA.Mods.Common.Traits
 					groundTroopNum += s.Units.Count;
 			}
 
-			if (groundTroopNum < Info.SquadSize)
+			var requiredForRush = Math.Max(1, Info.SquadSize * Info.MinimumAttackForcePercent / 100);
+			if (groundTroopNum < requiredForRush)
 				return;
 
 			var randomAttackableUnit = unitsHangingAroundTheBase.Where(a => a.Info.HasTraitInfo<AttackBaseInfo>()).RandomOrDefault(World.LocalRandom);

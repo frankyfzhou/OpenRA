@@ -83,6 +83,7 @@ Player:
 		McvTypes: mcv
 		ConstructionYardTypes: gacnst
 		McvFactoryTypes: gaweap, naweap
+		MaxMcvOrdersPerGame: 3
 	CaptureManagerBotModule:
 		RequiresCondition: enable-normal-ai || enable-turtle-ai
 		CapturingActorTypes: ghost, mhijack
@@ -145,6 +146,7 @@ Player:
 	SquadManagerBotModule@rush:
 		RequiresCondition: enable-rush-ai
 		SquadSize: 8
+		MinimumAttackForcePercent: 50
 		ExcludeFromSquadsTypes: harv, mcv, dpod, hunter, repair, medic
 		ConstructionYardTypes: gacnst
 		AirUnitsTypes: orca, orcab, scrin, apache, jumpjet
@@ -177,7 +179,7 @@ Player:
 		ConstructionYardTypes: gacnst
 		McvFactoryTypes: gaweap, naweap
 		MoveOldConyardFirst: true
-		MinimumConstructionYardCount: 2
+		MinimumConstructionYardCount: 1
 
 	# ── Normal AI: balanced play, all unit types, moderate defenses ──
 	BaseBuilderBotModule@normal:
@@ -344,6 +346,7 @@ Player:
 	SquadManagerBotModule@turtle:
 		RequiresCondition: enable-turtle-ai
 		SquadSize: 10
+		StuckTickThreshold: 150
 		ExcludeFromSquadsTypes: harv, mcv, dpod, hunter, repair, medic
 		ConstructionYardTypes: gacnst
 		AirUnitsTypes: orca, orcab, scrin, apache, jumpjet
@@ -455,24 +458,25 @@ Player:
 	UnitBuilderBotModule@air:
 		RequiresCondition: enable-air-ai
 		UnitQueues: Vehicle, Infantry, Air
+		AircraftToRearmActorRatio: 3
 		UnitsToBuild:
-			e1: 30
-			e2: 10
+			e1: 10
 			harv: 5
 			mmch: 5
-			smech: 5
-			orca: 30
-			orcab: 20
-			apache: 30
-			scrin: 20
-			jumpjet: 15
+			orca: 40
+			orcab: 30
+			apache: 40
+			scrin: 25
+			jumpjet: 20
 		UnitLimits:
 			harv: 4
-			e1: 6
-			e2: 4
+			e1: 4
+			e2: 2
+			mmch: 3
+			smech: 2
 	McvExpansionManagerBotModule@air:
 		RequiresCondition: enable-air-ai
 		McvTypes: mcv
 		ConstructionYardTypes: gacnst
 		McvFactoryTypes: gaweap, naweap
-		MinimumConstructionYardCount: 2
+		MinimumConstructionYardCount: 1
