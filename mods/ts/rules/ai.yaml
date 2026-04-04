@@ -196,6 +196,17 @@ Player:
 		MoveOldConyardFirst: true
 		MinimumConstructionYardCount: 1
 		MaxMcvOrdersPerGame: 3
+	BaseDefenseBotModule@rush:
+		RequiresCondition: enable-rush-ai
+		AlertThreshold: 3
+		EmergencyThreshold: 5
+		RallyRadius: 15
+		RallyCooldown: 80
+		EmergencyDefenseTypes: gavulc, garock
+		EmergencyBuildMinCash: 600
+		HarvesterTypes: harv
+		RefineryTypes: proc
+		CriticalBuildingTypes: gacnst, proc
 
 	# ── Normal AI: balanced play, all unit types, moderate defenses ──
 	BaseBuilderBotModule@normal:
@@ -301,6 +312,17 @@ Player:
 		McvFactoryTypes: gaweap, naweap
 		MinimumConstructionYardCount: 2
 		MaxMcvOrdersPerGame: 5
+	BaseDefenseBotModule@normal:
+		RequiresCondition: enable-normal-ai
+		AlertThreshold: 2
+		EmergencyThreshold: 4
+		RallyRadius: 20
+		RallyCooldown: 100
+		EmergencyDefenseTypes: gavulc, garock, gacsam
+		EmergencyBuildMinCash: 800
+		HarvesterTypes: harv
+		RefineryTypes: proc
+		CriticalBuildingTypes: gacnst, proc
 
 	# ── Turtle AI: heavy defenses, slow expansion, large squads ──
 	BaseBuilderBotModule@turtle:
@@ -411,6 +433,17 @@ Player:
 		MoveConyardTick: 8000
 		MinimumConstructionYardCount: 1
 		MaxMcvOrdersPerGame: 5
+	BaseDefenseBotModule@turtle:
+		RequiresCondition: enable-turtle-ai
+		AlertThreshold: 1
+		EmergencyThreshold: 3
+		RallyRadius: 25
+		RallyCooldown: 60
+		EmergencyDefenseTypes: gavulc, garock, gacsam, gactwr
+		EmergencyBuildMinCash: 500
+		HarvesterTypes: harv
+		RefineryTypes: proc
+		CriticalBuildingTypes: gacnst, proc
 
 	# ── Air AI: air superiority, helipads over barracks, small ground force ──
 	BaseBuilderBotModule@air:
@@ -499,3 +532,14 @@ Player:
 		McvFactoryTypes: gaweap, naweap
 		MinimumConstructionYardCount: 2
 		MaxMcvOrdersPerGame: 5
+	BaseDefenseBotModule@air:
+		RequiresCondition: enable-air-ai
+		AlertThreshold: 3
+		EmergencyThreshold: 5
+		RallyRadius: 15
+		RallyCooldown: 80
+		EmergencyDefenseTypes: gacsam, nasam
+		EmergencyBuildMinCash: 600
+		HarvesterTypes: harv
+		RefineryTypes: proc
+		CriticalBuildingTypes: gacnst, proc
