@@ -29,7 +29,7 @@ Player:
 		RefineryTypes: proc
 		InitialHarvesters: 2
 		HarvestersPerRefinery: 2
-		MaxHarvesters: 4
+		MaxHarvesters: 6
 		CashStallThreshold: 200
 	HarvesterBotModule@normal-turtle:
 		RequiresCondition: enable-normal-ai || enable-turtle-ai
@@ -386,12 +386,13 @@ Player:
 		RequiresCondition: enable-turtle-ai
 		SquadSize: 10
 		StuckTickThreshold: 150
+		MinimumAttackForcePercent: 60
 		ExcludeFromSquadsTypes: harv, mcv, dpod, hunter, repair, medic
 		ConstructionYardTypes: gacnst
 		AirUnitsTypes: orca, orcab, scrin, apache, jumpjet
 		ProtectionTypes: gacnst, proc, gasilo, gapowr, gapowrup, napowr, naapwr, gapile, nahand, gaweap, naweap, garadr, naradr, gahpad, nahpad, gatech, natech, gavulc, garock, gacsam, gactwr, naobel, nalasr, nasam, mcv, harv
-		RushInterval: 40000
-		MinimumAttackForceDelay: 40000
+		RushInterval: 15000
+		MinimumAttackForceDelay: 12000
 		ProtectUnitScanRadius: 30
 		ProtectionScanRadius: 15
 	UnitBuilderBotModule@turtle:
@@ -513,7 +514,7 @@ Player:
 		UnitsToBuild:
 			e1: 30
 			e2: 10
-			harv: 5
+			harv: 12
 			mmch: 5
 			smech: 5
 			orca: 30
@@ -522,7 +523,7 @@ Player:
 			scrin: 20
 			jumpjet: 15
 		UnitLimits:
-			harv: 4
+			harv: 6
 			e1: 6
 			e2: 4
 	McvExpansionManagerBotModule@air:
