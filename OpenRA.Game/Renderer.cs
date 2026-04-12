@@ -56,6 +56,7 @@ namespace OpenRA
 		Sprite worldSprite;
 		Size lastMaximumViewportSize;
 		Size lastWorldViewportSize;
+		Size lastWorldRenderSize;
 
 		public Size WorldFrameBufferSize => worldSheet.Size;
 		public int WorldDownscaleFactor { get; private set; } = 1;
@@ -243,14 +244,25 @@ namespace OpenRA
 				throw new InvalidOperationException("BeginWorld called before SetMaximumViewportSize has been set.");
 
 			var centerLocation = viewportLocation.ToInt2();
+
+			// Render at screen resolution instead of viewport (game-world) resolution.
+			// At zoom > 1, viewportSize < NativeResolution. Using NativeResolution for the
+			// framebuffer rendering region gives more framebuffer pixels per game unit,
+			// allowing HD sprites (e.g., 2× textures with Scale: 0.5) to render at full detail.
+			var nativeRes = NativeResolution;
+			var renderWidth = Math.Min(nativeRes.Width, worldSheet.Size.Width);
+			var renderHeight = Math.Min(nativeRes.Height, worldSheet.Size.Height);
+			var renderSize = new Size(renderWidth, renderHeight);
+
 			if (worldSprite == null || viewportSize != lastWorldViewportSize || viewportLocation != lastViewportLocation)
 			{
 				lastViewportLocation = viewportLocation;
 				lastWorldViewportSize = viewportSize;
+				lastWorldRenderSize = renderSize;
 
 				// Downscale world rendering if needed to fit within the framebuffer
-				var vw = viewportSize.Width;
-				var vh = viewportSize.Height;
+				var vw = renderSize.Width;
+				var vh = renderSize.Height;
 				var bw = worldSheet.Size.Width;
 				var bh = worldSheet.Size.Height;
 				WorldDownscaleFactor = 1;
@@ -264,11 +276,17 @@ namespace OpenRA
 			}
 
 			worldBuffer.Bind();
+
+			// Set GL viewport to renderSize so NDC [-1,+1] maps to renderSize pixels.
+			Context.SetViewport(renderSize.Width, renderSize.Height);
+
 			var rect = new Rectangle(centerLocation, viewportSize);
 			if (lastWorldViewport != rect)
 			{
 				var topLeft = centerLocation - viewportSize.ToInt2() / 2;
-				WorldSpriteRenderer.SetViewportParams(worldSheet.Size, WorldDownscaleFactor, depthMargin, topLeft);
+
+				// Use viewportSize for projection.
+				WorldSpriteRenderer.SetViewportParams(viewportSize, WorldDownscaleFactor, depthMargin, topLeft);
 				lastWorldViewport = rect;
 			}
 
@@ -428,11 +446,16 @@ namespace OpenRA
 
 			if (renderType == RenderType.World)
 			{
+				// Scale from game coordinates to framebuffer pixel coordinates.
+				// When HD rendering is active, renderSize > viewportSize and
+				// each game unit spans multiple framebuffer pixels.
+				var sx = (float)lastWorldRenderSize.Width / lastWorldViewportSize.Width;
+				var sy = (float)lastWorldRenderSize.Height / lastWorldViewportSize.Height;
 				var r = Rectangle.FromLTRB(
-					rect.Left / WorldDownscaleFactor,
-					rect.Top / WorldDownscaleFactor,
-					(rect.Right + WorldDownscaleFactor - 1) / WorldDownscaleFactor,
-					(rect.Bottom + WorldDownscaleFactor - 1) / WorldDownscaleFactor);
+					(int)(rect.Left * sx) / WorldDownscaleFactor,
+					(int)(rect.Top * sy) / WorldDownscaleFactor,
+					((int)(rect.Right * sx) + WorldDownscaleFactor - 1) / WorldDownscaleFactor,
+					((int)(rect.Bottom * sy) + WorldDownscaleFactor - 1) / WorldDownscaleFactor);
 				worldBuffer.EnableScissor(r);
 			}
 			else
@@ -452,11 +475,13 @@ namespace OpenRA
 				if (scissorState.Count > 0)
 				{
 					var rect = scissorState.Peek();
+					var sx = (float)lastWorldRenderSize.Width / lastWorldViewportSize.Width;
+					var sy = (float)lastWorldRenderSize.Height / lastWorldViewportSize.Height;
 					var r = Rectangle.FromLTRB(
-						rect.Left / WorldDownscaleFactor,
-						rect.Top / WorldDownscaleFactor,
-						(rect.Right + WorldDownscaleFactor - 1) / WorldDownscaleFactor,
-						(rect.Bottom + WorldDownscaleFactor - 1) / WorldDownscaleFactor);
+						(int)(rect.Left * sx) / WorldDownscaleFactor,
+						(int)(rect.Top * sy) / WorldDownscaleFactor,
+						((int)(rect.Right * sx) + WorldDownscaleFactor - 1) / WorldDownscaleFactor,
+						((int)(rect.Bottom * sy) + WorldDownscaleFactor - 1) / WorldDownscaleFactor);
 					worldBuffer.EnableScissor(r);
 				}
 				else

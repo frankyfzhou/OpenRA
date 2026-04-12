@@ -1,0 +1,26 @@
+# HD sprite overrides — 2× resolution PNG sprite sheets.
+# Listed last in Sequences: so these deep-merge over structures.yaml definitions.
+# Scale: 0.5 makes 2× texels occupy the same game-world space as originals.
+
+fact:
+	Defaults:
+		Filename: fact-hd.png
+		Scale: 0.5
+	make:
+		Filename: factmake-hd.png
+	dead:
+		Filename: factdead-hd.png
+	bib:
+		Scale: 1
+	icon:
+		Scale: 1
+	fake-icon:
+		Scale: 1
+
+mcv:
+	Defaults:
+		Scale: 0.5
+	idle:
+		Filename: mcv-hd.png
+	icon:
+		Scale: 1

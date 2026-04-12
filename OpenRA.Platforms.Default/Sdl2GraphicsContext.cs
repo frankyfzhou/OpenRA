@@ -274,6 +274,12 @@ namespace OpenRA.Platforms.Default
 			SDL.SDL_GL_SetSwapInterval(enabled ? 1 : 0);
 		}
 
+		public void SetViewport(int width, int height)
+		{
+			VerifyThreadAffinity();
+			OpenGL.glViewport(0, 0, width, height);
+		}
+
 		public void Dispose()
 		{
 			Dispose(true);

@@ -505,6 +505,15 @@ namespace OpenRA.Platforms.Default
 		{
 			Post(doSetVSync, enabled);
 		}
+
+		public void SetViewport(int width, int height)
+		{
+			Send(o =>
+			{
+				var s = ((int Width, int Height))o;
+				context.SetViewport(s.Width, s.Height);
+			}, (width, height));
+		}
 	}
 
 	sealed class ThreadedFrameBuffer : IFrameBuffer
