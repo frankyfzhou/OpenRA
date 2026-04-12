@@ -316,6 +316,38 @@ namespace OpenRA
 			generatingMinimap = false;
 		}
 
+		/// <summary>
+		/// Lazily loads the map preview image from the map package.
+		/// Used on WASM where UpdateFromCache skips loading map.png.
+		/// </summary>
+		internal bool TryLoadPreview()
+		{
+			if (innerData.Preview != null)
+				return true;
+
+			try
+			{
+				LoadPackage();
+				if (package == null || !package.Contains("map.png"))
+					return false;
+
+				using (var dataStream = package.GetStream("map.png"))
+				{
+					var newData = innerData.Clone();
+					newData.Preview = new Png(dataStream);
+					lock (syncRoot)
+						innerData = newData;
+				}
+
+				return true;
+			}
+			catch (Exception e)
+			{
+				Log.Write("debug", $"Failed to load map preview for {Title}: {e.Message}");
+				return false;
+			}
+		}
+
 		public bool DefinesUnsafeCustomRules()
 		{
 			return Ruleset.DefinesUnsafeCustomRules(modData, this, innerData.RuleDefinitions,

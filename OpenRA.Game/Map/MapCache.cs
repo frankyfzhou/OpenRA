@@ -525,6 +525,11 @@ namespace OpenRA
 			var processed = 0;
 			foreach (var p in todo)
 			{
+				// On WASM, maps loaded from cache don't have Preview set.
+				// Try to lazily load it from the map package.
+				if (p.Preview == null)
+					p.TryLoadPreview();
+
 				if (p.Preview != null)
 				{
 					try
