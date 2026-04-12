@@ -548,7 +548,18 @@ namespace OpenRA
 			}
 
 			if (sheetBuilder.Current != null)
-				sheetBuilder.Current.ReleaseBuffer();
+			{
+				// On WASM, WebTexture.GetData() can't read back texture contents
+				// (WebGL has no glGetTexImage). If we release the buffer now, any
+				// future Add() to this sheet would get a zero-length buffer from
+				// GetData() causing "ArrayBufferView not big enough" WebGL errors.
+				// Keep the buffer alive on WASM; commit to ensure the texture is
+				// marked dirty for the next render.
+				if (OperatingSystem.IsBrowser())
+					sheetBuilder.Current.CommitBufferedData();
+				else
+					sheetBuilder.Current.ReleaseBuffer();
+			}
 
 			// If there are remaining items, re-queue and schedule next batch
 			if (processed < todo.Count)
@@ -563,6 +574,10 @@ namespace OpenRA
 			}
 			else
 			{
+				// Release buffer on native only — WASM can't read back texture data.
+				if (sheetBuilder.Current != null && !OperatingSystem.IsBrowser())
+					sheetBuilder.Current.ReleaseBuffer();
+
 				lock (syncRoot)
 					previewLoaderThreadShutDown = true;
 			}
