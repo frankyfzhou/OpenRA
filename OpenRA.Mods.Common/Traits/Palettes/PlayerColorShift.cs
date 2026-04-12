@@ -53,9 +53,16 @@ namespace OpenRA.Mods.Common.Traits
 
 		public void LoadPlayerPalettes(WorldRenderer wr, string playerName, Color color, bool replaceExisting)
 		{
+			var paletteName = info.BasePalette + playerName;
+
+			// PlayerColorShift runs via ILoadsPlayerPalettes alongside PlayerColorPalette.
+			// Depending on trait iteration order the palette may not exist yet — skip it.
+			if (!wr.HasPalette(paletteName))
+				return;
+
 			var (r, g, b) = color.ToLinear();
 			var (h, s, v) = Color.RgbToHsv(r, g, b);
-			wr.SetPaletteColorShift(info.BasePalette + playerName,
+			wr.SetPaletteColorShift(paletteName,
 				h - info.ReferenceHue, s - info.ReferenceSaturation, v / info.ReferenceValue,
 				info.MinHue, info.MaxHue);
 		}

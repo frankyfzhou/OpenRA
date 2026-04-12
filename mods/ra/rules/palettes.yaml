@@ -74,6 +74,20 @@
 		BaseName: player-noshadow
 		BasePalette: player-noshadow
 		RemapIndex: 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95
+	PlayerColorShift:
+		BasePalette: player
+		MinHue: 0.079
+		MaxHue: 0.156
+		ReferenceHue: 0.110
+		ReferenceSaturation: 0.794
+		ReferenceValue: 0.930
+	PlayerColorShift@NOSHADOW:
+		BasePalette: player-noshadow
+		MinHue: 0.079
+		MaxHue: 0.156
+		ReferenceHue: 0.110
+		ReferenceSaturation: 0.794
+		ReferenceValue: 0.930
 	MenuPostProcessEffect:
 		FadeInLength: 4
 	RotationPaletteEffect@defaultwater:

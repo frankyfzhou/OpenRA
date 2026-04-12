@@ -91,8 +91,16 @@ namespace OpenRA.Graphics
 
 		public void UpdatePalettesForPlayer(string internalName, Color color, bool replaceExisting)
 		{
-			foreach (var pal in World.WorldActor.TraitsImplementing<ILoadsPlayerPalettes>())
+			var traits = World.WorldActor.TraitsImplementing<ILoadsPlayerPalettes>().ToArray();
+			foreach (var pal in traits)
 				pal.LoadPlayerPalettes(this, internalName, color, replaceExisting);
+
+			// Second pass with replaceExisting=true: traits that depend on palettes
+			// created by other traits (e.g. PlayerColorShift depends on PlayerColorPalette)
+			// may have been skipped in the first pass due to ordering. Re-run them now
+			// that all palettes exist.
+			foreach (var pal in traits)
+				pal.LoadPlayerPalettes(this, internalName, color, true);
 		}
 
 		PaletteReference CreatePaletteReference(string name)
@@ -134,6 +142,11 @@ namespace OpenRA.Graphics
 		public void SetPaletteColorShift(string name, float hueOffset, float satOffset, float valueModifier, float minHue, float maxHue)
 		{
 			palette.SetColorShift(name, hueOffset, satOffset, valueModifier, minHue, maxHue);
+		}
+
+		public bool HasPalette(string name)
+		{
+			return palette.Contains(name);
 		}
 
 		// PERF: Avoid LINQ.
