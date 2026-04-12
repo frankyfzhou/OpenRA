@@ -145,7 +145,7 @@ vec4 ColorShift(vec4 c, float p)
  	vec4 shift = texture(ColorShifts, vec2(0.75, p));
 
 	vec3 hsv = rgb2hsv(srgb2linear(c).rgb);
-	if (hsv.r > range.r && range.g >= hsv.r)
+	if (hsv.r > range.r && range.g >= hsv.r && hsv.g >= range.b)
 		c = linear2srgb(vec4(hsv2rgb(vec3(hsv.r + shift.r, clamp(hsv.g + shift.g, 0.0, 1.0), hsv.b * clamp(shift.b, 0.0, 1.0))), c.a));
 
 	return c;

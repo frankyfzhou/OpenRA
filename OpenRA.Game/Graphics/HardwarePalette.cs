@@ -96,11 +96,12 @@ namespace OpenRA.Graphics
 			CopyBufferToTexture();
 		}
 
-		public void SetColorShift(string name, float hueOffset, float satOffset, float valueMultiplier, float minHue, float maxHue)
+		public void SetColorShift(string name, float hueOffset, float satOffset, float valueMultiplier, float minHue, float maxHue, float minSaturation = 0f)
 		{
 			var index = GetPaletteIndex(name);
 			colorShiftBuffer[8 * index + 0] = minHue;
 			colorShiftBuffer[8 * index + 1] = maxHue;
+			colorShiftBuffer[8 * index + 2] = minSaturation;
 			colorShiftBuffer[8 * index + 4] = hueOffset;
 			colorShiftBuffer[8 * index + 5] = satOffset;
 			colorShiftBuffer[8 * index + 6] = valueMultiplier;

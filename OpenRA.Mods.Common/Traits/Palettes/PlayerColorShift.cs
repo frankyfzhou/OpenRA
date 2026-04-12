@@ -39,6 +39,9 @@ namespace OpenRA.Mods.Common.Traits
 		[Desc("Value reference for the color shift.")]
 		public readonly float ReferenceValue = 0.95f;
 
+		[Desc("Minimum saturation for a pixel to be shifted. Pixels below this threshold are left unchanged.")]
+		public readonly float MinSaturation = 0f;
+
 		public override object Create(ActorInitializer init) { return new PlayerColorShift(this); }
 	}
 
@@ -64,7 +67,7 @@ namespace OpenRA.Mods.Common.Traits
 			var (h, s, v) = Color.RgbToHsv(r, g, b);
 			wr.SetPaletteColorShift(paletteName,
 				h - info.ReferenceHue, s - info.ReferenceSaturation, v / info.ReferenceValue,
-				info.MinHue, info.MaxHue);
+				info.MinHue, info.MaxHue, info.MinSaturation);
 		}
 	}
 }

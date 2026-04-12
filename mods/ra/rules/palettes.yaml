@@ -81,6 +81,7 @@
 		ReferenceHue: 0.110
 		ReferenceSaturation: 0.794
 		ReferenceValue: 0.930
+		MinSaturation: 0.5
 	PlayerColorShift@NOSHADOW:
 		BasePalette: player-noshadow
 		MinHue: 0.079
@@ -88,6 +89,7 @@
 		ReferenceHue: 0.110
 		ReferenceSaturation: 0.794
 		ReferenceValue: 0.930
+		MinSaturation: 0.5
 	MenuPostProcessEffect:
 		FadeInLength: 4
 	RotationPaletteEffect@defaultwater:

@@ -139,9 +139,9 @@ namespace OpenRA.Graphics
 				paletteReference.Palette = pal;
 		}
 
-		public void SetPaletteColorShift(string name, float hueOffset, float satOffset, float valueModifier, float minHue, float maxHue)
+		public void SetPaletteColorShift(string name, float hueOffset, float satOffset, float valueModifier, float minHue, float maxHue, float minSaturation = 0f)
 		{
-			palette.SetColorShift(name, hueOffset, satOffset, valueModifier, minHue, maxHue);
+			palette.SetColorShift(name, hueOffset, satOffset, valueModifier, minHue, maxHue, minSaturation);
 		}
 
 		public bool HasPalette(string name)
