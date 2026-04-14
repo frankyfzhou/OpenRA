@@ -221,17 +221,6 @@ barl:
 		Filename: barl-hd.png
 		Scale: 0.5
 
-barr:
-	Defaults:
-		Filename: barr-hd.png
-		Scale: 0.5
-	bib:
-		Scale: 1
-	icon:
-		Scale: 1
-	make:
-		Filename: barrmake-hd.png
-
 beacon:
 	arrow:
 		Filename: mouse-hd.png
@@ -1781,19 +1770,6 @@ tc05.husk:
 	Defaults:
 		Filename: tc05-hd.png
 		Scale: 0.5
-
-tent:
-	Defaults:
-		Filename: tent-hd.png
-		Scale: 0.5
-	bib:
-		Scale: 1
-	fake-icon:
-		Scale: 1
-	icon:
-		Scale: 1
-	make:
-		Scale: 1
 
 thf:
 	Defaults:
