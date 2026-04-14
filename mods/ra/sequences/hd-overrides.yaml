@@ -155,6 +155,21 @@ apc:
 	muzzle:
 		Filename: minigun-hd.png
 
+apwr:
+	Defaults:
+		Filename: apwr-hd.png
+		Scale: 0.5
+	bib:
+		Scale: 1
+	dead:
+		Filename: apwrdead-hd.png
+	fake-icon:
+		Scale: 1
+	icon:
+		Scale: 1
+	make:
+		Filename: apwrmake-hd.png
+
 arty:
 	idle:
 		Filename: arty-hd.png
