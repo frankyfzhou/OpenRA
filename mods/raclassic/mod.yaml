@@ -40,6 +40,7 @@ FileSystem: ContentInstallerFileSystem
 		~content|scores.mix
 		~content|general.mix
 		ra|bits
+		ra|bits/hd
 		ra|bits/desert
 	RequiredContentFiles:
 		content|expand/chrotnk1.aud
@@ -99,6 +100,7 @@ Sequences:
 	ra|sequences/aircraft.yaml
 	ra|sequences/misc.yaml
 	ra|sequences/decorations.yaml
+	ra|sequences/hd-overrides.yaml
 
 TileSets:
 	ra|tilesets/snow.yaml
@@ -272,7 +274,7 @@ SupportsMapsFrom: ra
 
 SoundFormats: Aud, Wav
 
-SpriteFormats: ShpD2, ShpTD, TmpRA, TmpTD, ShpTS
+SpriteFormats: PngSheet, ShpD2, ShpTD, TmpRA, TmpTD, ShpTS
 
 VideoFormats: Vqa, Wsa
 
